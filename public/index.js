@@ -1,5 +1,6 @@
 // ========================= //
 // = Copyright (c) NullDev = //
+// =     - SPDX: MIT -     = //
 // ========================= //
 
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
@@ -206,4 +207,11 @@ document.addEventListener("click", e => {
             setTimeout(() => (copyBtn.textContent = orig), 1500);
         });
     }
+});
+
+// @ts-ignore
+const BGM = Bgm || window.Bgm;
+const bgm = new BGM("canvas#bg");
+document.addEventListener("DOMContentLoaded", function(){
+    bgm.init();
 });

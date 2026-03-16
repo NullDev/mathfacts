@@ -1,5 +1,6 @@
 // ========================= //
 // = Copyright (c) NullDev = //
+// =     - SPDX: MIT -     = //
 // ========================= //
 
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
