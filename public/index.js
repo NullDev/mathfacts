@@ -68,7 +68,7 @@ document.getElementById("btn-random")?.addEventListener("click", async() => {
         : "";
 
     try {
-        const res = await fetch(`/api/facts/random${exclude}`);
+        const res = await fetch(`api/facts/random${exclude}`);
         const data = await res.json();
 
         if (!res.ok) {
@@ -114,7 +114,7 @@ document.getElementById("btn-all")?.addEventListener("click", async() => {
     setLoading(btn, true);
 
     try {
-        const res = await fetch("/api/facts");
+        const res = await fetch("api/facts");
         const data = await res.json();
 
         if (!res.ok) {
@@ -163,7 +163,7 @@ document.getElementById("btn-submit")?.addEventListener("click", async() => {
     setLoading(btn, true);
 
     try {
-        const res = await fetch("/api/facts/submit", {
+        const res = await fetch("api/facts/submit", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ fact }),

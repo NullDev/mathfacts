@@ -22,7 +22,7 @@ function updateCounts() {
 
 async function loadSubmissions() {
     try {
-        const res = await fetch("/api/admin/submissions", {
+        const res = await fetch("api/admin/submissions", {
             headers: { Authorization: token },
         });
         if (!res.ok) return false;
@@ -196,7 +196,7 @@ document.querySelectorAll(".tab").forEach(tab => {
  * @param {any} action
  */
 async function reviewSubmission(id, action) {
-    const res = await fetch(`/api/admin/submissions/${id}/${action}`, {
+    const res = await fetch(`api/admin/submissions/${id}/${action}`, {
         method: "POST",
         headers: { Authorization: token },
     });
