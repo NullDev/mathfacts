@@ -9,6 +9,14 @@ lerna-debug.log*
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
+# Config
+config/config.custom.ts
+
+# DB
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
 # Runtime data
 pids
 *.pid
