@@ -5,7 +5,7 @@
 
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
 
-let token = sessionStorage.getItem("admin_token") ?? "";
+let token = localStorage.getItem("admin_token") ?? "";
 /**
  * @type {never[]}
  */
@@ -123,7 +123,7 @@ async function doLogin() {
 
     const ok = await loadSubmissions();
     if (ok) {
-        sessionStorage.setItem("admin_token", token);
+        localStorage.setItem("admin_token", token);
         showPanel();
     }
     else {
@@ -142,7 +142,7 @@ async function tryLoadPanel() {
     }
     else {
         token = "";
-        sessionStorage.removeItem("admin_token");
+        localStorage.removeItem("admin_token");
     }
 }
 
@@ -169,7 +169,7 @@ function showActionAlert(type, msg) {
 }
 
 document.getElementById("btn-logout")?.addEventListener("click", () => {
-    sessionStorage.removeItem("admin_token");
+    localStorage.removeItem("admin_token");
     token = "";
     location.reload();
 });
