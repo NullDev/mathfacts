@@ -1,0 +1,48 @@
+{
+  "name": "mathfacts-api",
+  "version": "1.0.0",
+  "module": "src/server.ts",
+  "private": true,
+  "description": "Simple Math Facts API",
+  "type": "module",
+  "author": "NullDev",
+  "license": "MIT",
+  "engines": {
+    "bun": ">=1.3.10"
+  },
+  "homepage": "https://v1.cx/mathfacts",
+  "packageManager": "bun@1.3.10",
+  "scripts": {
+    "start": "bun run src/server.ts",
+    "dev": "bun --watch run src/server.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "generate-config": "bun scripts/generate-config.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@fastify/helmet": "^13.0.2",
+    "@fastify/static": "^9.0.0",
+    "fastify": "^5.8.2",
+    "node-cron": "^4.2.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.29.0",
+    "@babel/eslint-parser": "^7.28.6",
+    "@typescript-eslint/eslint-plugin": "^8.57.1",
+    "@typescript-eslint/parser": "^8.57.1",
+    "bun-types": "^1.3.10",
+    "eslint": "^10.0.3",
+    "typescript-eslint": "^8.57.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NullDev/mathfacts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/NullDev/mathfacts/issues"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
