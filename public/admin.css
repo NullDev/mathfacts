@@ -25,7 +25,6 @@ body {
   min-height: 100vh;
 }
 
-/* ── Header ── */
 header {
   padding: 1rem 2rem;
   border-bottom: 1px solid var(--border);
@@ -51,7 +50,6 @@ header {
   border-radius: 4px;
 }
 
-/* ── Login screen ── */
 #login-screen {
   display: flex;
   align-items: center;
@@ -84,7 +82,6 @@ input[type="password"], input[type="text"] {
 }
 input:focus { border-color: var(--primary); }
 
-/* ── Buttons ── */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -109,7 +106,6 @@ input:focus { border-color: var(--primary); }
 .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
 .btn-ghost:hover { background: var(--surface-2); color: var(--text); }
 
-/* ── Alert ── */
 .alert {
   padding: .6rem .9rem;
   border-radius: 6px;
@@ -122,13 +118,11 @@ input:focus { border-color: var(--primary); }
 .alert-error { background: var(--error-bg); color: var(--error); }
 .alert-success { background: var(--success-bg); color: var(--success); }
 
-/* ── Admin panel ── */
 #admin-panel { display: none; }
 #admin-panel.active { display: block; }
 
 .panel-wrap { max-width: 860px; margin: 0 auto; padding: 2rem; }
 
-/* ── Tabs ── */
 .tabs {
   display: flex;
   gap: .25rem;
@@ -164,7 +158,6 @@ input:focus { border-color: var(--primary); }
 }
 .tab.active .tab-count { background: var(--primary); color: #fff; opacity: .9; }
 
-/* ── Top bar ── */
 .panel-topbar {
   display: flex;
   align-items: center;
@@ -172,8 +165,6 @@ input:focus { border-color: var(--primary); }
   margin-bottom: 1.5rem;
 }
 .panel-topbar h1 { font-size: 1.3rem; font-weight: 700; }
-
-/* ── Submissions list ── */
 .sub-list { display: flex; flex-direction: column; gap: .75rem; }
 
 .sub-card {
@@ -219,7 +210,6 @@ input:focus { border-color: var(--primary); }
 .empty-state svg { margin-bottom: 1rem; opacity: .4; }
 .empty-state p { font-size: .9rem; }
 
-/* ── Spinner ── */
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner {
   display: inline-block;

@@ -33,7 +33,6 @@ body {
   min-height: 100vh;
 }
 
-/* ── Header ── */
 header {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
@@ -45,6 +44,13 @@ header {
   align-items: center;
   justify-content: space-between;
   height: 56px;
+}
+
+canvas#bg {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
 }
 
 .logo {
@@ -67,10 +73,8 @@ nav a {
 }
 nav a:hover { color: var(--text); }
 
-/* ── Main ── */
 main { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem 5rem; }
 
-/* ── Hero ── */
 .hero { text-align: center; margin-bottom: 3rem; }
 .hero h1 { font-size: 2.2rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: .75rem; }
 .hero p { color: var(--text-muted); font-size: 1.1rem; max-width: 500px; margin: 0 auto 1.5rem; }
@@ -86,7 +90,6 @@ main { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem 5rem; }
   border-radius: 999px;
 }
 
-/* ── Section headings ── */
 .section-title {
   font-size: 1.25rem;
   font-weight: 700;
@@ -98,7 +101,6 @@ main { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem 5rem; }
   gap: .5rem;
 }
 
-/* ── Demo grid ── */
 .demos {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -126,7 +128,6 @@ main { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem 5rem; }
 }
 .card-desc { font-size: .85rem; color: var(--text-muted); }
 
-/* ── Buttons ── */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -151,7 +152,6 @@ main { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem 5rem; }
 .btn-outline:hover { background: var(--surface-2); color: var(--text); }
 .btn-sm { padding: .3rem .65rem; font-size: .78rem; }
 
-/* ── Fact display box ── */
 .fact-box {
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -181,7 +181,6 @@ main { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem 5rem; }
   font-style: normal;
 }
 
-/* ── Seen IDs row ── */
 .seen-row {
   display: flex;
   align-items: center;
@@ -200,7 +199,6 @@ main { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem 5rem; }
 }
 .exclude-toggle { display: flex; align-items: center; gap: .4rem; font-size: .8rem; }
 
-/* ── Facts list ── */
 .facts-list-wrap {
   max-height: 250px;
   overflow-y: auto;
@@ -226,7 +224,6 @@ main { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem 5rem; }
   flex-shrink: 0;
 }
 
-/* ── Form ── */
 textarea {
   width: 100%;
   border: 1px solid var(--border);
@@ -244,7 +241,6 @@ textarea:focus { border-color: var(--primary); background: var(--surface); }
 
 .char-count { font-size: .75rem; color: var(--text-muted); text-align: right; margin-top: -.5rem; }
 
-/* ── Alert ── */
 .alert {
   padding: .6rem .9rem;
   border-radius: 6px;
@@ -256,7 +252,6 @@ textarea:focus { border-color: var(--primary); background: var(--surface); }
 .alert-success { background: var(--success-bg); color: var(--success); }
 .alert-error { background: var(--error-bg); color: var(--error); }
 
-/* ── Docs ── */
 .endpoint-block {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -360,7 +355,6 @@ pre .comment { color: #64748b; font-style: italic; }
 }
 .copy-btn:hover { background: rgba(255,255,255,.2); color: #e2e8f0; }
 
-/* ── Spinner ── */
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner {
   display: inline-block;
@@ -375,7 +369,6 @@ pre .comment { color: #64748b; font-style: italic; }
   border-top-color: var(--primary);
 }
 
-/* ── Responsive ── */
 @media (max-width: 640px) {
   main { padding: 1.5rem 1rem 4rem; }
   .hero h1 { font-size: 1.6rem; }
