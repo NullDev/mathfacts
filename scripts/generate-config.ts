@@ -5,7 +5,7 @@ import fs from "node:fs/promises";
 // =     - SPDX: MIT -     = //
 // ========================= //
 
-if (await fs.stat("./config/config.custom.js").catch(() => false)){
+if (await fs.stat("./config/config.custom.ts").catch(() => false)){
     console.log("Config file already exists. Skipping...");
     process.exit(0);
 }
