@@ -2,7 +2,7 @@
 
 A simple Math Facts API built with Fastify and Bun. Serves mathematical facts and accepts community submissions for admin review.
 
-**Public URL:** https://v1.cx/mathfacts
+**Public URL:** https://nulldev.org/mathfacts/
 
 ---
 

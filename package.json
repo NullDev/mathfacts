@@ -10,7 +10,7 @@
   "engines": {
     "bun": ">=1.3.10"
   },
-  "homepage": "https://v1.cx/mathfacts",
+  "homepage": "https://nulldev.org/mathfacts",
   "packageManager": "bun@1.3.10",
   "scripts": {
     "start": "bun run src/server.ts",
