@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { getDb } from "../db.js";
 import Log from "../util/log.js";
+import { config } from "../../config/config.js";
 
 // ========================= //
 // = Copyright (c) NullDev = //
@@ -73,6 +74,21 @@ export const factsRoutes: FastifyPluginAsync = async(app) => {
 
         const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
         Log.info(`New submission from IP ${ip}: ${trimmed}`);
+
+        if (config.dc_webhook) {
+            try {
+                await fetch(config.dc_webhook, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        content: `---\nNew fact submission:\n\`\`\`${trimmed}\`\`\`\nFrom IP: ${ip}\n<https://nulldev.org/mathfacts/admin.html>\n---`,
+                    }),
+                });
+            }
+            catch (err) {
+                Log.error("Failed to send Discord webhook:", err as Error);
+            }
+        }
 
         return reply.code(201).send({ message: "Fact submitted for review. Thank you!" });
     });
