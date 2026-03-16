@@ -54,7 +54,7 @@ app.register(helmet);
 
 app.register(fastifyStatic, {
     root: path.join(import.meta.dir, "../public"),
-    prefix: "/",
+    prefix: config.path,
 });
 
 app.get("/admin", (_req, reply) => reply.sendFile("admin.html"));
