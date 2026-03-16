@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MathFacts - Admin</title>
+  <link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+
+<header>
+  <a class="logo" href="/">∑ MathFacts</a>
+  <span class="admin-badge">Admin Panel</span>
+</header>
+
+<!-- Login screen -->
+<div id="login-screen">
+  <div class="login-card">
+    <h2>Admin Access</h2>
+    <p>Enter your password to manage submitted facts.</p>
+
+    <div class="alert alert-error" id="login-error"></div>
+
+    <label for="pwd-input">Password</label>
+    <input type="password" id="pwd-input" placeholder="••••••••••••" autocomplete="current-password" />
+
+    <button class="btn btn-primary" id="btn-login">Sign In</button>
+  </div>
+</div>
+
+<!-- Admin panel -->
+<div id="admin-panel">
+  <div class="panel-wrap">
+    <div class="panel-topbar">
+      <h1>Submissions</h1>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn-sm btn-ghost" id="btn-refresh">↻ Refresh</button>
+        <button class="btn btn-sm btn-ghost" id="btn-logout">Sign Out</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="pending">
+        Pending <span class="tab-count" id="count-pending">0</span>
+      </button>
+      <button class="tab" data-tab="approved">
+        Approved <span class="tab-count" id="count-approved">0</span>
+      </button>
+      <button class="tab" data-tab="rejected">
+        Rejected <span class="tab-count" id="count-rejected">0</span>
+      </button>
+    </div>
+
+    <div class="alert alert-success" id="action-alert"></div>
+    <div class="alert alert-error" id="action-error"></div>
+
+    <div class="sub-list" id="sub-list"></div>
+  </div>
+</div>
+
+<script src="/admin.js"></script>
+
+</body>
+</html>
