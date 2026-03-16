@@ -188,21 +188,22 @@ document.getElementById("btn-submit")?.addEventListener("click", async() => {
     }
 });
 
-/**
- * @param {string} id
- */ // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function toggleDoc(id) {
-    document.getElementById(id)?.classList.toggle("open");
-}
+document.addEventListener("click", e => {
+    const header = /** @type {HTMLElement | null} */ (e.target)?.closest("[data-toggle]");
+    if (header) {
+        const id = /** @type {HTMLElement} */ (header).dataset.toggle;
+        if (id) document.getElementById(id)?.classList.toggle("open");
+        return;
+    }
 
-/**
- * @param {{ closest: (arg0: string) => { (): any; new (): any; querySelector: { (arg0: string): any; new (): any; }; }; textContent: string; }} btn
- */ // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function copyCode(btn) {
-    const pre = btn.closest(".copy-btn-wrap").querySelector("pre");
-    navigator.clipboard.writeText(pre.innerText).then(() => {
-        const orig = btn.textContent;
-        btn.textContent = "Copied!";
-        setTimeout(() => (btn.textContent = orig), 1500);
-    });
-}
+    const copyBtn = /** @type {HTMLElement | null} */ (e.target)?.closest(".copy-btn");
+    if (copyBtn) {
+        const pre = copyBtn.closest(".copy-btn-wrap")?.querySelector("pre");
+        if (!pre) return;
+        navigator.clipboard.writeText(pre.innerText).then(() => {
+            const orig = copyBtn.textContent;
+            copyBtn.textContent = "Copied!";
+            setTimeout(() => (copyBtn.textContent = orig), 1500);
+        });
+    }
+});

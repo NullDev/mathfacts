@@ -71,8 +71,8 @@ function renderList() { // @ts-ignore
 
         const actions = sub.status === "pending" ? `
             <div class="sub-actions">
-                <button class="btn btn-sm btn-success" onclick="doReview(${sub.id}, 'approve', this)">✓ Approve</button>
-                <button class="btn btn-sm btn-danger" onclick="doReview(${sub.id}, 'reject', this)">✗ Reject</button>
+                <button class="btn btn-sm btn-success" data-id="${sub.id}" data-action="approve">✓ Approve</button>
+                <button class="btn btn-sm btn-danger" data-id="${sub.id}" data-action="reject">✗ Reject</button>
             </div>
         ` : "";
 
@@ -206,9 +206,8 @@ async function reviewSubmission(id, action) {
 /**
  * @param {any} id
  * @param {string} action
- * @param {any} btn
- */ // eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function doReview(id, action, btn) {
+ */
+async function doReview(id, action) {
     const card = document.getElementById(`sub-${id}`);
     const buttons = card?.querySelectorAll("button");
     buttons?.forEach(b => (b.disabled = true));
@@ -237,3 +236,10 @@ async function doReview(id, action, btn) {
         buttons?.forEach(b => (b.disabled = false));
     }
 }
+
+document.getElementById("sub-list")?.addEventListener("click", async e => {
+    const btn = /** @type {HTMLElement | null} */ (e.target)?.closest("[data-action]");
+    if (!btn) return;
+    const {id, action} = /** @type {HTMLElement} */ (btn).dataset;
+    if (id && action) await doReview(id, action);
+});

@@ -96,7 +96,7 @@
         API Documentation
       </div>
       <div class="endpoint-block open" id="doc-all">
-        <div class="endpoint-header" onclick="toggleDoc('doc-all')">
+        <div class="endpoint-header" data-toggle="doc-all">
           <span class="method-badge method-get">GET</span>
           <span class="endpoint-path">/api/facts</span>
           <span class="endpoint-summary">Retrieve all facts</span>
@@ -116,20 +116,20 @@
     { <span class="str">"id"</span>: <span class="num">2</span>, <span class="str">"content"</span>: <span class="str">"The only factorial that's also a square is 1."</span> },
     <span class="comment">// …</span>
   ]</pre>
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <button class="copy-btn">Copy</button>
             </div>
           </div>
           <div class="doc-section">
             <div class="doc-label">cURL example</div>
             <div class="copy-btn-wrap">
               <pre>curl https://nulldev.org/mathfacts/api/facts</pre>
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <button class="copy-btn">Copy</button>
             </div>
           </div>
         </div>
       </div>
       <div class="endpoint-block" id="doc-random">
-        <div class="endpoint-header" onclick="toggleDoc('doc-random')">
+        <div class="endpoint-header" data-toggle="doc-random">
           <span class="method-badge method-get">GET</span>
           <span class="endpoint-path">/api/facts/random</span>
           <span class="endpoint-summary">Get a random fact</span>
@@ -162,20 +162,20 @@
 
   <span class="comment">// 404 — all facts excluded</span>
   { <span class="str">"error"</span>: <span class="str">"No facts available"</span> }</pre>
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <button class="copy-btn">Copy</button>
             </div>
           </div>
           <div class="doc-section">
             <div class="doc-label">cURL example</div>
             <div class="copy-btn-wrap">
               <pre>curl "https://nulldev.org/mathfacts/api/facts/random?exclude=1,5,12"</pre>
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <button class="copy-btn">Copy</button>
             </div>
           </div>
         </div>
       </div>
       <div class="endpoint-block" id="doc-submit">
-        <div class="endpoint-header" onclick="toggleDoc('doc-submit')">
+        <div class="endpoint-header" data-toggle="doc-submit">
           <span class="method-badge method-post">POST</span>
           <span class="endpoint-path">/api/facts/submit</span>
           <span class="endpoint-summary">Submit a fact for review</span>
@@ -208,7 +208,7 @@
 
   <span class="comment">// 400 Bad Request</span>
   { <span class="str">"error"</span>: <span class="str">"'fact' field is required"</span> }</pre>
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <button class="copy-btn">Copy</button>
             </div>
           </div>
           <div class="doc-section">
@@ -217,7 +217,7 @@
               <pre>curl -X POST https://nulldev.org/mathfacts/api/facts/submit \
     -H "Content-Type: application/json" \
     -d '{"fact": "Every prime greater than 2 is odd."}'</pre>
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <button class="copy-btn">Copy</button>
             </div>
           </div>
         </div>
