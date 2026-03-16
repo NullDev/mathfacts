@@ -44,7 +44,10 @@ if (!fs.existsSync(path.resolve("./data"))){
 }
 else Log.done("Data dir exists!");
 
-const app = Fastify({ logger: true });
+const app = Fastify({
+    logger: true,
+    trustProxy: true,
+});
 
 initDb();
 sheduleCrons();
