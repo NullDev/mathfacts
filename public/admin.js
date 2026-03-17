@@ -74,11 +74,12 @@ function renderList() { // @ts-ignore
             <div class="sub-actions">
                 <button class="btn btn-sm btn-success" data-id="${sub.id}" data-action="approve">✓ Approve</button>
                 <button class="btn btn-sm btn-danger" data-id="${sub.id}" data-action="reject">✗ Reject</button>
+                <button class="btn btn-sm btn-ghost" data-id="${sub.id}" data-action="revise">✎ Approve with Revision</button>
             </div>
         ` : "";
 
         return `
-            <div class="sub-card" id="sub-${sub.id}">
+            <div class="sub-card" id="sub-${sub.id}" data-content="${escHtml(sub.content)}">
                 <div class="sub-content">${escHtml(sub.content)}</div>
                 <div class="sub-meta">
                 <span>#${sub.id}</span>
@@ -238,9 +239,76 @@ async function doReview(id, action) {
     }
 }
 
+/**
+ * @param {any} id
+ * @param {string} content
+ */
+async function doReviewWithRevision(id, content) {
+    const card = document.getElementById(`sub-${id}`);
+    const buttons = card?.querySelectorAll("button");
+    buttons?.forEach(b => (b.disabled = true));
+
+    try {
+        const res = await fetch(`api/admin/submissions/${id}/approve-revision`, {
+            method: "POST",
+            headers: { Authorization: token, "Content-Type": "application/json" },
+            body: JSON.stringify({ content }),
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            showActionAlert("success", data.message); // @ts-ignore
+            const sub = submissions.find(s => s.id === parseInt(id, 10));
+            if (sub) { // @ts-ignore
+                sub.status = "approved"; // @ts-ignore
+                sub.reviewed_at = new Date().toISOString();
+            }
+            updateCounts();
+            renderList();
+        }
+        else {
+            showActionAlert("error", data.error ?? "Action failed");
+            buttons?.forEach(b => (b.disabled = false));
+        }
+    }
+    catch {
+        showActionAlert("error", "Network error");
+        buttons?.forEach(b => (b.disabled = false));
+    }
+}
+
 document.getElementById("sub-list")?.addEventListener("click", async e => {
     const btn = /** @type {HTMLElement | null} */ (e.target)?.closest("[data-action]");
     if (!btn) return;
-    const {id, action} = /** @type {HTMLElement} */ (btn).dataset;
-    if (id && action) await doReview(id, action);
+    const { id, action } = /** @type {HTMLElement} */ (btn).dataset;
+    if (!id || !action) return;
+
+    if (action === "approve" || action === "reject") {
+        await doReview(id, action);
+    }
+    else if (action === "revise") {
+        const card = document.getElementById(`sub-${id}`);
+        if (!card) return;
+        const actionsDiv = card.querySelector(".sub-actions");
+        if (!actionsDiv) return;
+        actionsDiv.innerHTML = `
+            <textarea class="revision-textarea"></textarea>
+            <div style="display:flex;gap:.5rem;margin-top:.5rem">
+                <button class="btn btn-sm btn-success" data-id="${id}" data-action="confirm-revise">✓ Confirm</button>
+                <button class="btn btn-sm btn-ghost" data-id="${id}" data-action="cancel-revise">✗ Cancel</button>
+            </div>
+        `;
+        const textarea = /** @type {HTMLTextAreaElement | null} */ (actionsDiv.querySelector(".revision-textarea"));
+        if (textarea) textarea.value = card.dataset.content ?? "";
+    }
+    else if (action === "confirm-revise") {
+        const card = document.getElementById(`sub-${id}`);
+        const textarea = /** @type {HTMLTextAreaElement | null} */ (card?.querySelector(".revision-textarea"));
+        const revised = textarea?.value.trim();
+        if (!revised) return;
+        await doReviewWithRevision(id, revised);
+    }
+    else if (action === "cancel-revise") {
+        renderList();
+    }
 });
