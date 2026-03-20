@@ -13,6 +13,22 @@ interface Fact {
     content: string;
 }
 
+function fuzzyScore(content: string, query: string): number {
+    const c = content.toLowerCase();
+    const q = query.toLowerCase().trim();
+    if (!q) return 0;
+
+    let score = c.includes(q) ? 100 : 0;
+
+    const words = q.split(/\s+/).filter(w => w.length > 2);
+    if (words.length > 0) {
+        const matched = words.filter(w => c.includes(w)).length;
+        score += (matched / words.length) * 60;
+    }
+
+    return score;
+}
+
 export const factsRoutes: FastifyPluginAsync = async(app) => {
     // GET /api/facts — return all facts
     app.get("/facts", async() => {
@@ -52,6 +68,42 @@ export const factsRoutes: FastifyPluginAsync = async(app) => {
             return reply.code(404).send({ error: "No facts available" });
         }
 
+        return fact;
+    });
+
+    // GET /api/facts/search?text= — fuzzy text search
+    app.get<{ Querystring: { text?: string } }>("/facts/search", async(req, reply) => {
+        const text = req.query.text?.trim();
+        if (!text) return reply.code(400).send({ error: "'text' query parameter is required" });
+
+        const db = getDb();
+        const facts = db.query<Fact, []>("SELECT id, content FROM facts ORDER BY id").all();
+
+        const scored = facts
+            .map(f => ({ ...f, score: fuzzyScore(f.content, text) }))
+            .filter(f => f.score > 0)
+            .sort((a, b) => b.score - a.score);
+
+        if (scored.length === 0) return reply.code(404).send({ error: "No matching facts found" });
+
+        const [best, ...rest] = scored;
+        const { score: _b, ...bestMatch } = best;
+        const matches = rest.map(({ score: _s, ...f }) => f);
+
+        return { bestMatch, matches };
+    });
+
+    // GET /api/facts/:id — get a single fact by ID
+    app.get<{ Params: { id: string } }>("/facts/:id", async(req, reply) => {
+        const id = parseInt(req.params.id, 10);
+        if (!Number.isFinite(id) || id <= 0) return reply.code(400).send({ error: "Invalid ID" });
+
+        const db = getDb();
+        const fact = db
+            .query<Fact, [number]>("SELECT id, content FROM facts WHERE id = ?")
+            .get(id);
+
+        if (!fact) return reply.code(404).send({ error: "Fact not found" });
         return fact;
     });
 

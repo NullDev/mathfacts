@@ -43,6 +43,56 @@ Returns a single random fact.
 
 ---
 
+#### `GET /api/facts/:id`
+Returns a single fact by its numeric ID.
+
+**Response** `200`
+```json
+{ "id": 42, "content": "A monad is just a monoid in the category of endofunctors." }
+```
+
+**Response** `404`
+```json
+{ "error": "Fact not found" }
+```
+
+**Response** `400`
+```json
+{ "error": "Invalid ID" }
+```
+
+---
+
+#### `GET /api/facts/search`
+Fuzzy text search across all facts. Scores by full-phrase match and individual word overlap.
+
+**Query Parameters**
+| Param | Type | Description |
+|-------|------|-------------|
+| `text` | string (required) | Search phrase, e.g. `monoidal category` |
+
+**Response** `200`
+```json
+{
+  "bestMatch": { "id": 7, "content": "A monoid in a monoidal category is the categorical generalisation of a monoid." },
+  "matches": [
+    { "id": 3, "content": "..." }
+  ]
+}
+```
+
+**Response** `400` — missing `text` param
+```json
+{ "error": "'text' query parameter is required" }
+```
+
+**Response** `404` — no results
+```json
+{ "error": "No matching facts found" }
+```
+
+---
+
 #### `POST /api/facts/submit`
 Submit a new fact for admin review.
 

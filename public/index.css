@@ -224,6 +224,22 @@ main { max-width: 1000px; margin: 0 auto; padding: 3rem 2rem 5rem; }
   flex-shrink: 0;
 }
 
+input[type="text"],
+input[type="number"] {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: .6rem .8rem;
+  font-size: .875rem;
+  font-family: inherit;
+  background: var(--surface-2);
+  color: var(--text);
+  outline: none;
+  transition: border-color .15s;
+}
+input[type="text"]:focus,
+input[type="number"]:focus { border-color: var(--primary); background: var(--surface); }
+
 textarea {
   width: 100%;
   border: 1px solid var(--border);

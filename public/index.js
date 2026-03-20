@@ -189,6 +189,101 @@ document.getElementById("btn-submit")?.addEventListener("click", async() => {
     }
 });
 
+document.getElementById("btn-byid")?.addEventListener("click", async() => {
+    const btn = /** @type {HTMLButtonElement | null} */ (document.getElementById("btn-byid"));
+    if (!btn) return;
+    const input = /** @type {HTMLInputElement | null} */ (document.getElementById("byid-input"));
+    const id = input?.value.trim();
+
+    if (!id) {
+        showAlert("byid-alert", "error", "Please enter a fact ID.");
+        return;
+    }
+
+    setLoading(btn, true);
+
+    try {
+        const res = await fetch(`api/facts/${encodeURIComponent(id)}`);
+        const data = await res.json();
+        const display = document.getElementById("byid-display");
+        if (!display) return;
+
+        if (!res.ok) {
+            display.style.display = "none";
+            showAlert("byid-alert", "error", data.error ?? "Something went wrong");
+            return;
+        }
+
+        display.style.display = "";
+        display.className = "fact-box has-fact";
+        display.innerHTML = `<span class="fact-id">#${data.id}</span>${escHtml(data.content)}`;
+    }
+    catch {
+        showAlert("byid-alert", "error", "Network error. Is the server running?");
+    }
+    finally {
+        setLoading(btn, false);
+    }
+});
+
+document.getElementById("byid-input")?.addEventListener("keydown", e => {
+    if (e.key === "Enter") document.getElementById("btn-byid")?.click();
+});
+
+document.getElementById("btn-search")?.addEventListener("click", async() => {
+    const btn = /** @type {HTMLButtonElement | null} */ (document.getElementById("btn-search"));
+    if (!btn) return;
+    const input = /** @type {HTMLInputElement | null} */ (document.getElementById("search-input"));
+    const text = input?.value.trim();
+
+    if (!text) {
+        showAlert("search-alert", "error", "Please enter a search term.");
+        return;
+    }
+
+    setLoading(btn, true);
+
+    try {
+        const res = await fetch(`api/facts/search?text=${encodeURIComponent(text)}`);
+        const data = await res.json();
+        const resultsDiv = document.getElementById("search-results");
+        if (!resultsDiv) return;
+
+        if (!res.ok) {
+            resultsDiv.style.display = "none";
+            showAlert("search-alert", "error", data.error ?? "Something went wrong");
+            return;
+        }
+
+        const bestEl = document.getElementById("search-best");
+        if (bestEl) {
+            bestEl.className = "fact-box has-fact";
+            bestEl.innerHTML = `<span class="fact-id">#${data.bestMatch.id}</span>${escHtml(data.bestMatch.content)}`;
+        }
+
+        const listEl = document.getElementById("search-list");
+        if (listEl) {
+            listEl.innerHTML = data.matches.length
+                ? data.matches.map((/** @type {{ id: any; content: any; }} */ f) =>
+                    `<li><span class="fact-num">#${f.id}</span><span>${escHtml(f.content)}</span></li>`,
+                ).join("")
+                : "<li style='color:var(--text-muted);font-size:.875rem'>No other matches.</li>";
+        }
+
+        resultsDiv.style.display = "block";
+    }
+    catch {
+        showAlert("search-alert", "error", "Network error. Is the server running?");
+    }
+    finally {
+        setLoading(btn, false);
+    }
+});
+
+document.getElementById("search-input")?.addEventListener("keydown", e => {
+    if (e.key === "Enter") document.getElementById("btn-search")?.click();
+});
+
 document.addEventListener("click", e => {
     const header = /** @type {HTMLElement | null} */ (e.target)?.closest("[data-toggle]");
     if (header) {
