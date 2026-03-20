@@ -132,7 +132,6 @@ document.getElementById("btn-all")?.addEventListener("click", async() => {
             `<li><span class="fact-num">#${f.id}</span><span>${escHtml(f.content)}</span></li>`,
         ).join("");
 
-        wrap.style.display = "block";
         count.textContent = `${data.length} fact${data.length !== 1 ? "s" : ""} loaded`;
         btn.textContent = "Refresh";
     }
@@ -209,12 +208,12 @@ document.getElementById("btn-byid")?.addEventListener("click", async() => {
         if (!display) return;
 
         if (!res.ok) {
-            display.style.display = "none";
+            display.className = "fact-box";
+            display.textContent = "";
             showAlert("byid-alert", "error", data.error ?? "Something went wrong");
             return;
         }
 
-        display.style.display = "";
         display.className = "fact-box has-fact";
         display.innerHTML = `<span class="fact-id">#${data.id}</span>${escHtml(data.content)}`;
     }
