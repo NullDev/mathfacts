@@ -87,7 +87,9 @@ export const factsRoutes: FastifyPluginAsync = async(app) => {
         if (scored.length === 0) return reply.code(404).send({ error: "No matching facts found" });
 
         const [best, ...rest] = scored;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { score: _b, ...bestMatch } = best;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const matches = rest.map(({ score: _s, ...f }) => f);
 
         return { bestMatch, matches };
