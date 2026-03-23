@@ -17,6 +17,27 @@ interface Submission {
     reviewed_at: string | null;
 }
 
+interface Fact {
+    id: number;
+    content: string;
+}
+
+function fuzzyScore(content: string, query: string): number {
+    const c = content.toLowerCase();
+    const q = query.toLowerCase().trim();
+    if (!q) return 0;
+
+    let score = c.includes(q) ? 100 : 0;
+
+    const words = q.split(/\s+/).filter(w => w.length > 2);
+    if (words.length > 0) {
+        const matched = words.filter(w => c.includes(w)).length;
+        score += (matched / words.length) * 60;
+    }
+
+    return score;
+}
+
 function requireAuth(req: FastifyRequest, reply: FastifyReply): boolean {
     const auth = req.headers.authorization;
     if (!auth || !config.admin_pass || auth !== `Bearer ${config.admin_pass}`) {
@@ -110,5 +131,72 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
         ).run(id);
 
         return { message: "Submission rejected" };
+    });
+
+    // GET /api/admin/facts — list all facts
+    app.get("/facts", async(req, reply) => {
+        if (!requireAuth(req, reply)) return;
+        const db = getDb();
+        return db.query<Fact, []>("SELECT id, content FROM facts ORDER BY id").all();
+    });
+
+    // PUT /api/admin/facts/:id — edit a fact
+    app.put<{ Params: { id: string }; Body: { content?: unknown } }>("/facts/:id", async(req, reply) => {
+        if (!requireAuth(req, reply)) return;
+        const db = getDb();
+        const id = parseInt(req.params.id, 10);
+        const content = req.body?.content;
+
+        if (!Number.isFinite(id) || id <= 0) return reply.code(400).send({ error: "Invalid ID" });
+        if (!content || typeof content !== "string" || !content.trim()) {
+            return reply.code(400).send({ error: "'content' field is required" });
+        }
+        if (content.trim().length > 500) {
+            return reply.code(400).send({ error: "Content must be 500 characters or fewer" });
+        }
+
+        const fact = db.query<Fact, [number]>("SELECT id FROM facts WHERE id = ?").get(id);
+        if (!fact) return reply.code(404).send({ error: "Fact not found" });
+
+        db.query("UPDATE facts SET content = ? WHERE id = ?").run(content.trim(), id);
+        return { message: "Fact updated successfully" };
+    });
+
+    // DELETE /api/admin/facts/:id — delete a fact
+    app.delete<{ Params: { id: string } }>("/facts/:id", async(req, reply) => {
+        if (!requireAuth(req, reply)) return;
+        const db = getDb();
+        const id = parseInt(req.params.id, 10);
+
+        if (!Number.isFinite(id) || id <= 0) return reply.code(400).send({ error: "Invalid ID" });
+
+        const fact = db.query<Fact, [number]>("SELECT id FROM facts WHERE id = ?").get(id);
+        if (!fact) return reply.code(404).send({ error: "Fact not found" });
+
+        db.query("DELETE FROM facts WHERE id = ?").run(id);
+        return { message: "Fact deleted" };
+    });
+
+    // GET /api/admin/submissions/:id/similar — find similar existing facts
+    app.get<{ Params: { id: string } }>("/submissions/:id/similar", async(req, reply) => {
+        if (!requireAuth(req, reply)) return;
+        const db = getDb();
+        const id = parseInt(req.params.id, 10);
+
+        const sub = db.query<Pick<Submission, "id" | "content">, [number]>(
+            "SELECT id, content FROM submissions WHERE id = ?",
+        ).get(id);
+
+        if (!sub) return reply.code(404).send({ error: "Submission not found" });
+
+        const facts = db.query<Fact, []>("SELECT id, content FROM facts ORDER BY id").all();
+        const similar = facts
+            .map(f => ({ ...f, score: fuzzyScore(f.content, sub.content) }))
+            .filter(f => f.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5)
+            .map(({ score: _s, ...f }) => f);
+
+        return { similar };
     });
 };

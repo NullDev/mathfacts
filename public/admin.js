@@ -7,10 +7,31 @@
 
 let token = localStorage.getItem("admin_token") ?? "";
 /**
- * @type {never[]}
+ * @type {any[]}
  */
 let submissions = [];
+/**
+ * @type {any[]}
+ */
+let facts = [];
 let activeTab = "pending";
+
+/**
+ * @param {string} content
+ * @param {string} query
+ */
+function fuzzyScore(content, query) {
+    const c = content.toLowerCase();
+    const q = query.toLowerCase().trim();
+    if (!q) return 0;
+    let score = c.includes(q) ? 100 : 0;
+    const words = q.split(/\s+/).filter(w => w.length > 2);
+    if (words.length > 0) {
+        const matched = words.filter(w => c.includes(w)).length;
+        score += (matched / words.length) * 60;
+    }
+    return score;
+}
 
 function updateCounts() {
     ["pending", "approved", "rejected"].forEach(status => {
@@ -19,6 +40,8 @@ function updateCounts() {
             el.textContent = submissions.filter(s => s.status === status).length.toString();
         }
     });
+    const factsCount = document.getElementById("count-facts");
+    if (factsCount) factsCount.textContent = facts.length.toString();
 }
 
 async function loadSubmissions() {
@@ -28,6 +51,12 @@ async function loadSubmissions() {
         });
         if (!res.ok) return false;
         submissions = await res.json();
+
+        const factsRes = await fetch("api/admin/facts", {
+            headers: { Authorization: token },
+        });
+        if (factsRes.ok) facts = await factsRes.json();
+
         updateCounts();
         return true;
     }
@@ -47,11 +76,46 @@ function escHtml(str) {
         .replace(/"/g, "&quot;");
 }
 
-function renderList() { // @ts-ignore
-    const filtered = submissions.filter(s => s.status === activeTab);
-    const container = document.getElementById("sub-list");
+/**
+ * @param {HTMLElement} container
+ */
+function renderFacts(container) {
+    if (facts.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <p>No facts in the database.</p>
+            </div>
+        `;
+        return;
+    }
 
+    container.innerHTML = facts.map(/** @type {(f: any) => string} */ (f) => `
+        <div class="sub-card fact-card" id="fact-${f.id}" data-fact-content="${escHtml(f.content)}">
+            <div class="fact-display">
+                <div class="sub-content">${escHtml(f.content)}</div>
+                <div class="sub-meta">
+                    <span>#${f.id}</span>
+                </div>
+                <div class="sub-actions">
+                    <button class="btn btn-sm btn-ghost" data-fact-id="${f.id}" data-action="edit-fact">✎ Edit</button>
+                    <button class="btn btn-sm btn-danger" data-fact-id="${f.id}" data-action="delete-fact">✗ Delete</button>
+                </div>
+            </div>
+        </div>
+    `).join("");
+}
+
+function renderList() {
+    const container = document.getElementById("sub-list");
     if (!container) return;
+
+    if (activeTab === "facts") {
+        renderFacts(container);
+        return;
+    }
+
+    // @ts-ignore
+    const filtered = submissions.filter(s => s.status === activeTab);
 
     if (filtered.length === 0) {
         container.innerHTML = `
@@ -70,6 +134,23 @@ function renderList() { // @ts-ignore
         const date = new Date(sub.submitted_at).toLocaleString();
         const reviewDate = sub.reviewed_at ? new Date(sub.reviewed_at).toLocaleString() : null;
 
+        let similarHtml = "";
+        if (sub.status === "pending" && facts.length > 0) {
+            const similar = facts
+                .map(f => ({ ...f, score: fuzzyScore(f.content, sub.content) }))
+                .filter(f => f.score > 0)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 3);
+            if (similar.length > 0) {
+                similarHtml = `
+                    <div class="similar-facts">
+                        <div class="similar-label">⚠ Similar existing facts:</div>
+                        ${similar.map(f => `<div class="similar-item"><span class="similar-id">#${f.id}</span> ${escHtml(f.content)}</div>`).join("")}
+                    </div>
+                `;
+            }
+        }
+
         const actions = sub.status === "pending" ? `
             <div class="sub-actions">
                 <button class="btn btn-sm btn-success" data-id="${sub.id}" data-action="approve">✓ Approve</button>
@@ -81,6 +162,7 @@ function renderList() { // @ts-ignore
         return `
             <div class="sub-card" id="sub-${sub.id}" data-content="${escHtml(sub.content)}">
                 <div class="sub-content">${escHtml(sub.content)}</div>
+                ${similarHtml}
                 <div class="sub-meta">
                 <span>#${sub.id}</span>
                 <span>Submitted: ${date}</span>
@@ -280,8 +362,92 @@ async function doReviewWithRevision(id, content) {
 document.getElementById("sub-list")?.addEventListener("click", async e => {
     const btn = /** @type {HTMLElement | null} */ (e.target)?.closest("[data-action]");
     if (!btn) return;
-    const { id, action } = /** @type {HTMLElement} */ (btn).dataset;
-    if (!id || !action) return;
+    // eslint-disable-next-line prefer-destructuring
+    const dataset = /** @type {HTMLElement} */ (btn).dataset;
+    const {action} = dataset;
+    if (!action) return;
+
+    // Fact management actions
+    const {factId} = dataset;
+    if (factId) {
+        if (action === "edit-fact") {
+            const card = document.getElementById(`fact-${factId}`);
+            if (!card) return;
+            const display = card.querySelector(".fact-display");
+            if (!display) return;
+            display.innerHTML = `
+                <textarea class="revision-textarea">${escHtml(card.dataset.factContent ?? "")}</textarea>
+                <div style="display:flex;gap:.5rem;margin-top:.5rem">
+                    <button class="btn btn-sm btn-success" data-fact-id="${factId}" data-action="save-fact">✓ Save</button>
+                    <button class="btn btn-sm btn-ghost" data-fact-id="${factId}" data-action="cancel-edit">✗ Cancel</button>
+                </div>
+            `;
+            const textarea = /** @type {HTMLTextAreaElement | null} */ (display.querySelector(".revision-textarea"));
+            if (textarea) textarea.value = card.dataset.factContent ?? "";
+        }
+        else if (action === "save-fact") {
+            const card = document.getElementById(`fact-${factId}`);
+            const textarea = /** @type {HTMLTextAreaElement | null} */ (card?.querySelector(".revision-textarea"));
+            const content = textarea?.value.trim();
+            if (!content) return;
+            const buttons = card?.querySelectorAll("button");
+            buttons?.forEach(b => (b.disabled = true));
+            try {
+                const res = await fetch(`api/admin/facts/${factId}`, {
+                    method: "PUT",
+                    headers: { Authorization: token, "Content-Type": "application/json" },
+                    body: JSON.stringify({ content }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showActionAlert("success", data.message);
+                    // eslint-disable-next-line no-shadow
+                    const f = facts.find(f => f.id === parseInt(factId, 10));
+                    if (f) f.content = content;
+                    renderList();
+                }
+                else {
+                    showActionAlert("error", data.error ?? "Update failed");
+                    buttons?.forEach(b => (b.disabled = false));
+                }
+            }
+            catch {
+                showActionAlert("error", "Network error");
+                buttons?.forEach(b => (b.disabled = false));
+            }
+        }
+        else if (action === "cancel-edit") {
+            renderList();
+        }
+        else if (action === "delete-fact") {
+            // eslint-disable-next-line no-alert
+            if (!confirm(`Delete fact #${factId}?`)) return;
+            try {
+                const res = await fetch(`api/admin/facts/${factId}`, {
+                    method: "DELETE",
+                    headers: { Authorization: token },
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showActionAlert("success", data.message);
+                    facts = facts.filter(f => f.id !== parseInt(factId, 10));
+                    updateCounts();
+                    renderList();
+                }
+                else {
+                    showActionAlert("error", data.error ?? "Delete failed");
+                }
+            }
+            catch {
+                showActionAlert("error", "Network error");
+            }
+        }
+        return;
+    }
+
+    // Submission actions
+    const {id} = dataset;
+    if (!id) return;
 
     if (action === "approve" || action === "reject") {
         await doReview(id, action);
