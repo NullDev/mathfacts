@@ -302,7 +302,8 @@ async function doReview(id, action) {
 
         if (res.ok) {
             showActionAlert("success", data.message); // @ts-ignore
-            const sub = submissions.find(s => s.id === id);
+            const numId = parseInt(id, 10);
+            const sub = submissions.find(s => s.id === numId);
             if (sub) { // @ts-ignore
                 sub.status = action === "approve" ? "approved" : "rejected"; // @ts-ignore
                 sub.reviewed_at = new Date().toISOString();
