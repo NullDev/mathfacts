@@ -195,7 +195,8 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
             .filter(f => f.score > 0)
             .sort((a, b) => b.score - a.score)
             .slice(0, 5)
-            .map(({ score: _s, ...f }) => f);
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            .map(({ score: score, ...f }) => f);
 
         return { similar };
     });

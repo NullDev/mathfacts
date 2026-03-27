@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import LogHandler from "./logHandler";
+import { cleanupRateLimits } from "./rateLimit";
 import Log from "./log";
 
 // ========================= //
@@ -14,11 +15,16 @@ const sheduleCrons = async function(): Promise<void> {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     });
 
+    cron.schedule("*/15 * * * *", () => {
+        cleanupRateLimits();
+    });
+
     const cronCount = cron.getTasks().size;
     Log.done("Scheduled " + cronCount + " Crons.");
 
     // Start on Init
     await LogHandler.removeOldLogs();
+    cleanupRateLimits();
 };
 
 export default sheduleCrons;

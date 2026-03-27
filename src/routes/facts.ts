@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
+import { createRateLimit } from "../util/rateLimit.js";
 import { getDb } from "../db.js";
 import Log from "../util/log.js";
 import { config } from "../../config/config.js";
@@ -110,7 +111,12 @@ export const factsRoutes: FastifyPluginAsync = async(app) => {
     });
 
     // POST /api/facts/submit — submit a fact for review
-    app.post<{ Body: { fact?: string } }>("/facts/submit", async(req, reply) => {
+    const submitPerMinute = createRateLimit("submit-minute", 2, 60_000, "Submission rate limit exceeded. Max 2 per minute.");
+    const submitPerHour = createRateLimit("submit-hour", 10, 3_600_000, "Hourly submission limit exceeded. Max 10 per hour.");
+
+    app.post<{ Body: { fact?: string } }>("/facts/submit", {
+        onRequest: [submitPerMinute, submitPerHour],
+    }, async(req, reply) => {
         const fact = req.body?.fact;
 
         if (!fact || typeof fact !== "string" || fact.trim().length === 0) {

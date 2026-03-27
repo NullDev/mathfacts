@@ -4,6 +4,7 @@ import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
+import { createRateLimit, initRateLimitDb } from "./util/rateLimit.js";
 import { initDb } from "./db.js";
 import { factsRoutes } from "./routes/facts.js";
 import { adminRoutes } from "./routes/admin.js";
@@ -50,10 +51,13 @@ const app = Fastify({
 });
 
 initDb();
+initRateLimitDb();
 sheduleCrons();
 
 app.register(cors, { origin: "*" });
 app.register(helmet);
+
+app.addHook("onRequest", createRateLimit("global", 10, 1000, "Rate limit exceeded. Max 10 requests per second."));
 
 app.register(fastifyStatic, {
     root: path.join(import.meta.dir, "../public"),
