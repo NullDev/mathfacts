@@ -123,6 +123,22 @@
           </div>
           <div class="alert" id="search-alert"></div>
         </div>
+        <div class="card">
+          <div>
+            <div class="card-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Suggest a Revision
+            </div>
+            <div class="card-desc" style="margin-top:.3rem">Propose a revision to an existing fact. It will be applied if approved.</div>
+          </div>
+          <input type="number" id="revise-id-input" min="1" placeholder="Fact ID to revise, e.g. 42" />
+          <div>
+            <textarea id="revise-input" rows="4" maxlength="500" placeholder="Your revised text for this fact…"></textarea>
+            <div class="char-count"><span id="revise-char-num">0</span> / 500</div>
+          </div>
+          <button class="btn btn-primary" id="btn-revise">Submit Revision</button>
+          <div class="alert" id="revise-alert"></div>
+        </div>
       </div>
     </section>
     <section id="docs">
@@ -347,6 +363,66 @@
             <div class="doc-label">cURL example</div>
             <div class="copy-btn-wrap">
               <pre>curl "https://nulldev.org/mathfacts/api/facts/search?text=monoidal+category"</pre>
+              <button class="copy-btn">Copy</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="endpoint-block" id="doc-revise">
+        <div class="endpoint-header" data-toggle="doc-revise">
+          <span class="method-badge method-post">POST</span>
+          <span class="endpoint-path">/api/facts/:id/revise</span>
+          <span class="endpoint-summary">Submit a revision for an existing fact</span>
+          <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="endpoint-body">
+          <div class="doc-section">
+            <div class="doc-label">Description</div>
+            <p style="font-size:.875rem">Proposes a revision to an existing fact. The revision is queued for admin review. If approved, the fact's text is updated.</p>
+          </div>
+          <div class="doc-section">
+            <div class="doc-label">Path Parameters</div>
+            <table>
+              <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td><code>id</code></td><td><code>integer</code></td><td>The ID of the fact to revise</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="doc-section">
+            <div class="doc-label">Request Body</div>
+            <table>
+              <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><code>content</code></td>
+                  <td><code>string</code></td>
+                  <td>Yes</td>
+                  <td>The revised text for the fact. Max 500 characters.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="doc-section">
+            <div class="doc-label">Response</div>
+            <div class="copy-btn-wrap">
+              <pre><span class="comment">// 201 Created</span>
+  { <span class="str">"message"</span>: <span class="str">"Revision submitted for review. Thank you!"</span> }
+
+  <span class="comment">// 400 Bad Request</span>
+  { <span class="str">"error"</span>: <span class="str">"'content' field is required"</span> }
+
+  <span class="comment">// 404 — fact not found</span>
+  { <span class="str">"error"</span>: <span class="str">"Fact not found"</span> }</pre>
+              <button class="copy-btn">Copy</button>
+            </div>
+          </div>
+          <div class="doc-section">
+            <div class="doc-label">cURL example</div>
+            <div class="copy-btn-wrap">
+              <pre>curl -X POST https://nulldev.org/mathfacts/api/facts/42/revise \
+    -H "Content-Type: application/json" \
+    -d '{"content": "A monad is a monoid in the category of endofunctors."}'</pre>
               <button class="copy-btn">Copy</button>
             </div>
           </div>

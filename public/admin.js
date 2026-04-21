@@ -14,6 +14,10 @@ let submissions = [];
  * @type {any[]}
  */
 let facts = [];
+/**
+ * @type {any[]}
+ */
+let revisions = [];
 let activeTab = "pending";
 
 /**
@@ -40,6 +44,8 @@ function updateCounts() {
             el.textContent = submissions.filter(s => s.status === status).length.toString();
         }
     });
+    const revisionsCount = document.getElementById("count-revisions");
+    if (revisionsCount) revisionsCount.textContent = revisions.filter(r => r.status === "pending").length.toString();
     const factsCount = document.getElementById("count-facts");
     if (factsCount) factsCount.textContent = facts.length.toString();
 }
@@ -56,6 +62,11 @@ async function loadSubmissions() {
             headers: { Authorization: token },
         });
         if (factsRes.ok) facts = await factsRes.json();
+
+        const revisionsRes = await fetch("api/admin/revisions", {
+            headers: { Authorization: token },
+        });
+        if (revisionsRes.ok) revisions = await revisionsRes.json();
 
         updateCounts();
         return true;
@@ -105,9 +116,62 @@ function renderFacts(container) {
     `).join("");
 }
 
+/**
+ * @param {HTMLElement} container
+ */
+function renderRevisions(container) {
+    const pending = revisions.filter(r => r.status === "pending");
+    if (pending.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+                    <rect x="9" y="3" width="6" height="4" rx="1"/>
+                </svg>
+                <p>No pending revisions.</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = pending.map(/** @type {(rev: any) => string} */ (rev) => {
+        const date = new Date(rev.submitted_at).toLocaleString();
+        const originalFact = facts.find(f => f.id === rev.fact_id);
+        const originalHtml = originalFact ? `
+            <div class="similar-facts">
+                <div class="similar-label">Original fact #${rev.fact_id}:</div>
+                <div class="similar-item">${escHtml(originalFact.content)}</div>
+            </div>
+        ` : `<div class="similar-facts"><div class="similar-label">Original fact #${rev.fact_id} (not found)</div></div>`;
+
+        return `
+            <div class="sub-card" id="rev-${rev.id}" data-content="${escHtml(rev.content)}">
+                <div class="sub-content">${escHtml(rev.content)}</div>
+                ${originalHtml}
+                <div class="sub-meta">
+                    <span>#${rev.id}</span>
+                    <span>For fact #${rev.fact_id}</span>
+                    <span>Submitted: ${date}</span>
+                    <span class="status-badge status-pending">pending</span>
+                </div>
+                <div class="sub-actions">
+                    <button class="btn btn-sm btn-success" data-rev-id="${rev.id}" data-action="approve-rev">✓ Approve</button>
+                    <button class="btn btn-sm btn-danger" data-rev-id="${rev.id}" data-action="reject-rev">✗ Reject</button>
+                    <button class="btn btn-sm btn-ghost" data-rev-id="${rev.id}" data-action="edit-rev">✎ Edit &amp; Approve</button>
+                </div>
+            </div>
+        `;
+    }).join("");
+}
+
 function renderList() {
     const container = document.getElementById("sub-list");
     if (!container) return;
+
+    if (activeTab === "revisions") {
+        renderRevisions(container);
+        return;
+    }
 
     if (activeTab === "facts") {
         renderFacts(container);
@@ -367,6 +431,115 @@ document.getElementById("sub-list")?.addEventListener("click", async e => {
     const dataset = /** @type {HTMLElement} */ (btn).dataset;
     const {action} = dataset;
     if (!action) return;
+
+    // Revision actions
+    const {revId} = dataset;
+    if (revId) {
+        if (action === "approve-rev") {
+            const card = document.getElementById(`rev-${revId}`);
+            const buttons = card?.querySelectorAll("button");
+            buttons?.forEach(b => (b.disabled = true));
+            try {
+                const res = await fetch(`api/admin/revisions/${revId}/approve`, {
+                    method: "POST",
+                    headers: { Authorization: token },
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showActionAlert("success", data.message);
+                    const rev = revisions.find(r => r.id === parseInt(revId, 10));
+                    if (rev) { rev.status = "approved"; rev.reviewed_at = new Date().toISOString(); }
+                    await loadSubmissions();
+                    renderList();
+                }
+                else {
+                    showActionAlert("error", data.error ?? "Action failed");
+                    buttons?.forEach(b => (b.disabled = false));
+                }
+            }
+            catch {
+                showActionAlert("error", "Network error");
+                buttons?.forEach(b => (b.disabled = false));
+            }
+        }
+        else if (action === "reject-rev") {
+            const card = document.getElementById(`rev-${revId}`);
+            const buttons = card?.querySelectorAll("button");
+            buttons?.forEach(b => (b.disabled = true));
+            try {
+                const res = await fetch(`api/admin/revisions/${revId}/reject`, {
+                    method: "POST",
+                    headers: { Authorization: token },
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showActionAlert("success", data.message);
+                    const rev = revisions.find(r => r.id === parseInt(revId, 10));
+                    if (rev) { rev.status = "rejected"; rev.reviewed_at = new Date().toISOString(); }
+                    updateCounts();
+                    renderList();
+                }
+                else {
+                    showActionAlert("error", data.error ?? "Action failed");
+                    buttons?.forEach(b => (b.disabled = false));
+                }
+            }
+            catch {
+                showActionAlert("error", "Network error");
+                buttons?.forEach(b => (b.disabled = false));
+            }
+        }
+        else if (action === "edit-rev") {
+            const card = document.getElementById(`rev-${revId}`);
+            if (!card) return;
+            const actionsDiv = card.querySelector(".sub-actions");
+            if (!actionsDiv) return;
+            actionsDiv.innerHTML = `
+                <textarea class="revision-textarea"></textarea>
+                <div style="display:flex;gap:.5rem;margin-top:.5rem">
+                    <button class="btn btn-sm btn-success" data-rev-id="${revId}" data-action="confirm-edit-rev">✓ Confirm</button>
+                    <button class="btn btn-sm btn-ghost" data-rev-id="${revId}" data-action="cancel-edit-rev">✗ Cancel</button>
+                </div>
+            `;
+            const textarea = /** @type {HTMLTextAreaElement | null} */ (actionsDiv.querySelector(".revision-textarea"));
+            if (textarea) textarea.value = card.dataset.content ?? "";
+        }
+        else if (action === "confirm-edit-rev") {
+            const card = document.getElementById(`rev-${revId}`);
+            const textarea = /** @type {HTMLTextAreaElement | null} */ (card?.querySelector(".revision-textarea"));
+            const content = textarea?.value.trim();
+            if (!content) return;
+            const buttons = card?.querySelectorAll("button");
+            buttons?.forEach(b => (b.disabled = true));
+            try {
+                const res = await fetch(`api/admin/revisions/${revId}/approve-revision`, {
+                    method: "POST",
+                    headers: { Authorization: token, "Content-Type": "application/json" },
+                    body: JSON.stringify({ content }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showActionAlert("success", data.message);
+                    const rev = revisions.find(r => r.id === parseInt(revId, 10));
+                    if (rev) { rev.status = "approved"; rev.reviewed_at = new Date().toISOString(); }
+                    await loadSubmissions();
+                    renderList();
+                }
+                else {
+                    showActionAlert("error", data.error ?? "Action failed");
+                    buttons?.forEach(b => (b.disabled = false));
+                }
+            }
+            catch {
+                showActionAlert("error", "Network error");
+                buttons?.forEach(b => (b.disabled = false));
+            }
+        }
+        else if (action === "cancel-edit-rev") {
+            renderList();
+        }
+        return;
+    }
 
     // Fact management actions
     const {factId} = dataset;

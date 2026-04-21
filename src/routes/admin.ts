@@ -17,6 +17,15 @@ interface Submission {
     reviewed_at: string | null;
 }
 
+interface Revision {
+    id: number;
+    fact_id: number;
+    content: string;
+    status: string;
+    submitted_at: string;
+    reviewed_at: string | null;
+}
+
 interface Fact {
     id: number;
     content: string;
@@ -199,5 +208,90 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
             .map(({ score: score, ...f }) => f);
 
         return { similar };
+    });
+
+    // GET /api/admin/revisions
+    app.get("/revisions", async(req, reply) => {
+        if (!requireAuth(req, reply)) return;
+        const db = getDb();
+        return db.query<Revision, []>(
+            "SELECT id, fact_id, content, status, submitted_at, reviewed_at FROM revisions ORDER BY submitted_at DESC",
+        ).all();
+    });
+
+    // POST /api/admin/revisions/:id/approve — apply revision to the fact
+    app.post<{ Params: { id: string } }>("/revisions/:id/approve", async(req, reply) => {
+        if (!requireAuth(req, reply)) return;
+        const db = getDb();
+        const id = parseInt(req.params.id, 10);
+
+        const rev = db
+            .query<Pick<Revision, "id" | "fact_id" | "content" | "status">, [number]>(
+                "SELECT id, fact_id, content, status FROM revisions WHERE id = ?",
+            )
+            .get(id);
+
+        if (!rev) return reply.code(404).send({ error: "Revision not found" });
+        if (rev.status !== "pending") return reply.code(400).send({ error: "Revision already reviewed" });
+
+        db.query("UPDATE facts SET content = ? WHERE id = ?").run(rev.content, rev.fact_id);
+        db.query(
+            "UPDATE revisions SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
+        ).run(id);
+
+        return { message: "Revision approved and fact updated" };
+    });
+
+    // POST /api/admin/revisions/:id/approve-revision — approve with edits
+    app.post<{ Params: { id: string }; Body: { content?: unknown } }>("/revisions/:id/approve-revision", async(req, reply) => {
+        if (!requireAuth(req, reply)) return;
+        const db = getDb();
+        const id = parseInt(req.params.id, 10);
+        const content = req.body?.content;
+
+        if (!content || typeof content !== "string" || !content.trim()) {
+            return reply.code(400).send({ error: "'content' field is required" });
+        }
+        if (content.trim().length > 500) {
+            return reply.code(400).send({ error: "Content must be 500 characters or fewer" });
+        }
+
+        const rev = db
+            .query<Pick<Revision, "id" | "fact_id" | "status">, [number]>(
+                "SELECT id, fact_id, status FROM revisions WHERE id = ?",
+            )
+            .get(id);
+
+        if (!rev) return reply.code(404).send({ error: "Revision not found" });
+        if (rev.status !== "pending") return reply.code(400).send({ error: "Revision already reviewed" });
+
+        db.query("UPDATE facts SET content = ? WHERE id = ?").run(content.trim(), rev.fact_id);
+        db.query(
+            "UPDATE revisions SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
+        ).run(id);
+
+        return { message: "Revision approved with edits and fact updated" };
+    });
+
+    // POST /api/admin/revisions/:id/reject
+    app.post<{ Params: { id: string } }>("/revisions/:id/reject", async(req, reply) => {
+        if (!requireAuth(req, reply)) return;
+        const db = getDb();
+        const id = parseInt(req.params.id, 10);
+
+        const rev = db
+            .query<Pick<Revision, "id" | "status">, [number]>(
+                "SELECT id, status FROM revisions WHERE id = ?",
+            )
+            .get(id);
+
+        if (!rev) return reply.code(404).send({ error: "Revision not found" });
+        if (rev.status !== "pending") return reply.code(400).send({ error: "Revision already reviewed" });
+
+        db.query(
+            "UPDATE revisions SET status = 'rejected', reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
+        ).run(id);
+
+        return { message: "Revision rejected" };
     });
 };

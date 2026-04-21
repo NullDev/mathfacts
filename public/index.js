@@ -283,6 +283,58 @@ document.getElementById("search-input")?.addEventListener("keydown", e => {
     if (e.key === "Enter") document.getElementById("btn-search")?.click();
 });
 
+const reviseInput = /** @type {HTMLInputElement | null} */ (document.getElementById("revise-input"));
+reviseInput?.addEventListener("input", () => {
+    const charNum = document.getElementById("revise-char-num");
+    if (!charNum) return;
+    charNum.textContent = reviseInput.value.length.toString();
+});
+
+document.getElementById("btn-revise")?.addEventListener("click", async() => {
+    const btn = /** @type {HTMLButtonElement | null} */ (document.getElementById("btn-revise"));
+    if (!btn) return;
+    const idInput = /** @type {HTMLInputElement | null} */ (document.getElementById("revise-id-input"));
+    const factId = idInput?.value.trim();
+    const content = reviseInput?.value.trim();
+
+    if (!factId) {
+        showAlert("revise-alert", "error", "Please enter a fact ID.");
+        return;
+    }
+    if (!content) {
+        showAlert("revise-alert", "error", "Please enter the revised text.");
+        return;
+    }
+
+    setLoading(btn, true);
+
+    try {
+        const res = await fetch(`api/facts/${encodeURIComponent(factId)}/revise`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            showAlert("revise-alert", "error", data.error ?? "Revision failed");
+        }
+        else {
+            showAlert("revise-alert", "success", data.message);
+            if (reviseInput) reviseInput.value = "";
+            if (idInput) idInput.value = "";
+            const charNum = document.getElementById("revise-char-num");
+            if (charNum) charNum.textContent = "0";
+        }
+    }
+    catch {
+        showAlert("revise-alert", "error", "Network error. Is the server running?");
+    }
+    finally {
+        setLoading(btn, false);
+    }
+});
+
 document.addEventListener("click", e => {
     const header = /** @type {HTMLElement | null} */ (e.target)?.closest("[data-toggle]");
     if (header) {

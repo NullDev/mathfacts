@@ -119,6 +119,42 @@ Submit a new fact for admin review.
 
 ---
 
+#### `POST /api/facts/:id/revise`
+Submit a revision to an existing fact for admin review.
+
+**Path Parameters**
+| Param | Type | Description |
+|-------|------|-------------|
+| `id` | integer | The ID of the fact to revise |
+
+**Body** `application/json`
+```json
+{ "content": "A monad is a monoid in the category of endofunctors." }
+```
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `content` | string | Required, max 500 characters |
+
+**Response** `201`
+```json
+{ "message": "Revision submitted for review. Thank you!" }
+```
+
+**Response** `400`
+```json
+{ "error": "'content' field is required" }
+// or
+{ "error": "Content must be 500 characters or fewer" }
+```
+
+**Response** `404`
+```json
+{ "error": "Fact not found" }
+```
+
+---
+
 ### Admin
 
 All admin endpoints require a Bearer token in the `Authorization` header.
@@ -193,6 +229,83 @@ Reject a pending submission.
 **Response** `400`
 ```json
 { "error": "Submission already reviewed" }
+```
+
+---
+
+#### `GET /api/admin/revisions`
+List all revisions sorted by submission date (newest first).
+
+**Response** `200`
+```json
+[
+  {
+    "id": 1,
+    "fact_id": 42,
+    "content": "Revised text for the fact.",
+    "status": "pending",
+    "submitted_at": "2026-04-20T12:00:00Z",
+    "reviewed_at": null
+  },
+  ...
+]
+```
+
+`status` is one of: `pending`, `approved`, `rejected`
+
+---
+
+#### `POST /api/admin/revisions/:id/approve`
+Approve a pending revision. Updates the original fact's text.
+
+**Response** `200`
+```json
+{ "message": "Revision approved and fact updated" }
+```
+
+**Response** `404`
+```json
+{ "error": "Revision not found" }
+```
+
+**Response** `400`
+```json
+{ "error": "Revision already reviewed" }
+```
+
+---
+
+#### `POST /api/admin/revisions/:id/approve-revision`
+Approve a revision with edits. Updates the original fact with the provided text instead.
+
+**Body** `application/json`
+```json
+{ "content": "Edited revision text" }
+```
+
+**Response** `200`
+```json
+{ "message": "Revision approved with edits and fact updated" }
+```
+
+---
+
+#### `POST /api/admin/revisions/:id/reject`
+Reject a pending revision.
+
+**Response** `200`
+```json
+{ "message": "Revision rejected" }
+```
+
+**Response** `404`
+```json
+{ "error": "Revision not found" }
+```
+
+**Response** `400`
+```json
+{ "error": "Revision already reviewed" }
 ```
 
 ---

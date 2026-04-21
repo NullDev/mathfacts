@@ -31,6 +31,16 @@ export function initDb(): void {
             submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             reviewed_at  DATETIME
         );
+
+        CREATE TABLE IF NOT EXISTS revisions (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            fact_id      INTEGER NOT NULL,
+            content      TEXT NOT NULL,
+            status       TEXT NOT NULL DEFAULT 'pending',
+            submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at  DATETIME,
+            FOREIGN KEY (fact_id) REFERENCES facts(id)
+        );
     `);
 
     // Seed initial facts if the table is empty

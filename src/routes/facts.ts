@@ -152,4 +152,55 @@ export const factsRoutes: FastifyPluginAsync = async(app) => {
 
         return reply.code(201).send({ message: "Fact submitted for review. Thank you!" });
     });
+
+    // POST /api/facts/:id/revise — submit a revision to an existing fact
+    const revisePerMinute = createRateLimit("revise-minute", 2, 60_000, "Revision rate limit exceeded. Max 2 per minute.");
+    const revisePerHour = createRateLimit("revise-hour", 10, 3_600_000, "Hourly revision limit exceeded. Max 10 per hour.");
+
+    app.post<{ Params: { id: string }; Body: { content?: string } }>("/facts/:id/revise", {
+        onRequest: [revisePerMinute, revisePerHour],
+    }, async(req, reply) => {
+        const factId = parseInt(req.params.id, 10);
+        if (!Number.isFinite(factId) || factId <= 0) {
+            return reply.code(400).send({ error: "Invalid ID" });
+        }
+
+        const content = req.body?.content;
+        if (!content || typeof content !== "string" || content.trim().length === 0) {
+            return reply.code(400).send({ error: "'content' field is required" });
+        }
+
+        const trimmed = content.trim();
+        if (trimmed.length > 500) {
+            return reply.code(400).send({ error: "Content must be 500 characters or fewer" });
+        }
+
+        const db = getDb();
+        const fact = db.query<Fact, [number]>("SELECT id FROM facts WHERE id = ?").get(factId);
+        if (!fact) {
+            return reply.code(404).send({ error: "Fact not found" });
+        }
+
+        db.query("INSERT INTO revisions (fact_id, content) VALUES (?, ?)").run(factId, trimmed);
+
+        const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+        Log.info(`New revision for fact #${factId} from IP ${ip}: ${trimmed}`);
+
+        if (config.dc_webhook) {
+            try {
+                await fetch(config.dc_webhook, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        content: `---\nNew revision for fact #${factId}:\n\`\`\`${trimmed}\`\`\`\nFrom IP: ${ip}\n<https://nulldev.org/mathfacts/admin.html>\n---`,
+                    }),
+                });
+            }
+            catch (err) {
+                Log.error("Failed to send Discord webhook:", err as Error);
+            }
+        }
+
+        return reply.code(201).send({ message: "Revision submitted for review. Thank you!" });
+    });
 };
