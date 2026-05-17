@@ -9,26 +9,56 @@ import { getDb } from "../db.js";
 
 /* eslint-disable consistent-return */
 
-interface Submission {
+interface SubmissionRow {
     id: number;
     content: string;
+    proof: string | null;
     status: string;
     submitted_at: string;
     reviewed_at: string | null;
 }
 
-interface Revision {
+interface RevisionRow {
     id: number;
     fact_id: number;
     content: string;
+    proof: string | null;
     status: string;
     submitted_at: string;
     reviewed_at: string | null;
 }
 
-interface Fact {
+interface FactRow {
     id: number;
     content: string;
+    proof: string | null;
+}
+
+type WithOptionalProof<T extends { proof: string | null }> = Omit<T, "proof"> & { proof?: string };
+
+function stripProof<T extends { proof: string | null }>(row: T): WithOptionalProof<T> {
+    const { proof, ...rest } = row;
+    const out = rest as WithOptionalProof<T>;
+    if (proof) out.proof = proof;
+    return out;
+}
+
+function validateProof(value: unknown): { ok: true; value: string | null } | { ok: false; error: string } {
+    if (value === undefined || value === null || value === "") return { ok: true, value: null };
+    if (typeof value !== "string") return { ok: false, error: "'proof' must be a string URL" };
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return { ok: true, value: null };
+    if (trimmed.length > 500) return { ok: false, error: "Proof URL must be 500 characters or fewer" };
+    try {
+        const url = new URL(trimmed);
+        if (url.protocol !== "http:" && url.protocol !== "https:") {
+            return { ok: false, error: "Proof URL must use http or https" };
+        }
+    }
+    catch {
+        return { ok: false, error: "Proof must be a valid URL" };
+    }
+    return { ok: true, value: trimmed };
 }
 
 function fuzzyScore(content: string, query: string): number {
@@ -61,9 +91,10 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
     app.get("/submissions", async(req, reply) => {
         if (!requireAuth(req, reply)) return;
         const db = getDb();
-        return db.query<Submission, []>(
-            "SELECT id, content, status, submitted_at, reviewed_at FROM submissions ORDER BY submitted_at DESC",
+        const rows = db.query<SubmissionRow, []>(
+            "SELECT id, content, proof, status, submitted_at, reviewed_at FROM submissions ORDER BY submitted_at DESC",
         ).all();
+        return rows.map(stripProof);
     });
 
     // POST /api/admin/submissions/:id/approve
@@ -73,15 +104,15 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
         const id = parseInt(req.params.id, 10);
 
         const sub = db
-            .query<Pick<Submission, "id" | "content" | "status">, [number]>(
-                "SELECT id, content, status FROM submissions WHERE id = ?",
+            .query<Pick<SubmissionRow, "id" | "content" | "proof" | "status">, [number]>(
+                "SELECT id, content, proof, status FROM submissions WHERE id = ?",
             )
             .get(id);
 
         if (!sub) return reply.code(404).send({ error: "Submission not found" });
         if (sub.status !== "pending") {return reply.code(400).send({ error: "Submission already reviewed" });}
 
-        db.query("INSERT OR IGNORE INTO facts (content) VALUES (?)").run(sub.content);
+        db.query("INSERT OR IGNORE INTO facts (content, proof) VALUES (?, ?)").run(sub.content, sub.proof);
         db.query(
             "UPDATE submissions SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
         ).run(id);
@@ -90,7 +121,7 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
     });
 
     // POST /api/admin/submissions/:id/approve-revision
-    app.post<{ Params: { id: string }; Body: { content?: unknown } }>("/submissions/:id/approve-revision", async(req, reply) => {
+    app.post<{ Params: { id: string }; Body: { content?: unknown; proof?: unknown } }>("/submissions/:id/approve-revision", async(req, reply) => {
         if (!requireAuth(req, reply)) return;
         const db = getDb();
         const id = parseInt(req.params.id, 10);
@@ -103,8 +134,11 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
             return reply.code(400).send({ error: "Content must be 500 characters or fewer" });
         }
 
+        const proofResult = validateProof(req.body?.proof);
+        if (!proofResult.ok) return reply.code(400).send({ error: proofResult.error });
+
         const sub = db
-            .query<Pick<Submission, "id" | "status">, [number]>(
+            .query<Pick<SubmissionRow, "id" | "status">, [number]>(
                 "SELECT id, status FROM submissions WHERE id = ?",
             )
             .get(id);
@@ -112,7 +146,7 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
         if (!sub) return reply.code(404).send({ error: "Submission not found" });
         if (sub.status !== "pending") return reply.code(400).send({ error: "Submission already reviewed" });
 
-        db.query("INSERT OR IGNORE INTO facts (content) VALUES (?)").run(content.trim());
+        db.query("INSERT OR IGNORE INTO facts (content, proof) VALUES (?, ?)").run(content.trim(), proofResult.value);
         db.query(
             "UPDATE submissions SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
         ).run(id);
@@ -127,7 +161,7 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
         const id = parseInt(req.params.id, 10);
 
         const sub = db
-            .query<Pick<Submission, "id" | "status">, [number]>(
+            .query<Pick<SubmissionRow, "id" | "status">, [number]>(
                 "SELECT id, status FROM submissions WHERE id = ?",
             )
             .get(id);
@@ -146,28 +180,53 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
     app.get("/facts", async(req, reply) => {
         if (!requireAuth(req, reply)) return;
         const db = getDb();
-        return db.query<Fact, []>("SELECT id, content FROM facts ORDER BY id").all();
+        const rows = db.query<FactRow, []>("SELECT id, content, proof FROM facts ORDER BY id").all();
+        return rows.map(stripProof);
     });
 
-    // PUT /api/admin/facts/:id — edit a fact
-    app.put<{ Params: { id: string }; Body: { content?: unknown } }>("/facts/:id", async(req, reply) => {
+    // PUT /api/admin/facts/:id — edit a fact (content and/or proof)
+    app.put<{ Params: { id: string }; Body: { content?: unknown; proof?: unknown } }>("/facts/:id", async(req, reply) => {
         if (!requireAuth(req, reply)) return;
         const db = getDb();
         const id = parseInt(req.params.id, 10);
-        const content = req.body?.content;
 
         if (!Number.isFinite(id) || id <= 0) return reply.code(400).send({ error: "Invalid ID" });
-        if (!content || typeof content !== "string" || !content.trim()) {
-            return reply.code(400).send({ error: "'content' field is required" });
-        }
-        if (content.trim().length > 500) {
-            return reply.code(400).send({ error: "Content must be 500 characters or fewer" });
+
+        const hasContent = req.body?.content !== undefined;
+        const hasProof = req.body?.proof !== undefined;
+        if (!hasContent && !hasProof) {
+            return reply.code(400).send({ error: "At least one of 'content' or 'proof' is required" });
         }
 
-        const fact = db.query<Fact, [number]>("SELECT id FROM facts WHERE id = ?").get(id);
+        let newContent: string | undefined;
+        if (hasContent) {
+            const content = req.body?.content;
+            if (!content || typeof content !== "string" || !content.trim()) {
+                return reply.code(400).send({ error: "'content' field must be a non-empty string" });
+            }
+            if (content.trim().length > 500) {
+                return reply.code(400).send({ error: "Content must be 500 characters or fewer" });
+            }
+            newContent = content.trim();
+        }
+
+        let newProof: string | null | undefined;
+        if (hasProof) {
+            const proofResult = validateProof(req.body?.proof);
+            if (!proofResult.ok) return reply.code(400).send({ error: proofResult.error });
+            newProof = proofResult.value;
+        }
+
+        const fact = db.query<FactRow, [number]>("SELECT id, content, proof FROM facts WHERE id = ?").get(id);
         if (!fact) return reply.code(404).send({ error: "Fact not found" });
 
-        db.query("UPDATE facts SET content = ? WHERE id = ?").run(content.trim(), id);
+        const sets: string[] = [];
+        const params: (string | number | null)[] = [];
+        if (newContent !== undefined) { sets.push("content = ?"); params.push(newContent); }
+        if (newProof !== undefined) { sets.push("proof = ?"); params.push(newProof); }
+        params.push(id);
+        db.query(`UPDATE facts SET ${sets.join(", ")} WHERE id = ?`).run(...params);
+
         return { message: "Fact updated successfully" };
     });
 
@@ -179,7 +238,7 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
 
         if (!Number.isFinite(id) || id <= 0) return reply.code(400).send({ error: "Invalid ID" });
 
-        const fact = db.query<Fact, [number]>("SELECT id FROM facts WHERE id = ?").get(id);
+        const fact = db.query<FactRow, [number]>("SELECT id FROM facts WHERE id = ?").get(id);
         if (!fact) return reply.code(404).send({ error: "Fact not found" });
 
         db.query("DELETE FROM facts WHERE id = ?").run(id);
@@ -192,20 +251,19 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
         const db = getDb();
         const id = parseInt(req.params.id, 10);
 
-        const sub = db.query<Pick<Submission, "id" | "content">, [number]>(
+        const sub = db.query<Pick<SubmissionRow, "id" | "content">, [number]>(
             "SELECT id, content FROM submissions WHERE id = ?",
         ).get(id);
 
         if (!sub) return reply.code(404).send({ error: "Submission not found" });
 
-        const facts = db.query<Fact, []>("SELECT id, content FROM facts ORDER BY id").all();
+        const facts = db.query<FactRow, []>("SELECT id, content, proof FROM facts ORDER BY id").all();
         const similar = facts
-            .map(f => ({ ...f, score: fuzzyScore(f.content, sub.content) }))
-            .filter(f => f.score > 0)
+            .map(f => ({ row: f, score: fuzzyScore(f.content, sub.content) }))
+            .filter(x => x.score > 0)
             .sort((a, b) => b.score - a.score)
             .slice(0, 5)
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            .map(({ score: score, ...f }) => f);
+            .map(x => stripProof(x.row));
 
         return { similar };
     });
@@ -214,9 +272,10 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
     app.get("/revisions", async(req, reply) => {
         if (!requireAuth(req, reply)) return;
         const db = getDb();
-        return db.query<Revision, []>(
-            "SELECT id, fact_id, content, status, submitted_at, reviewed_at FROM revisions ORDER BY submitted_at DESC",
+        const rows = db.query<RevisionRow, []>(
+            "SELECT id, fact_id, content, proof, status, submitted_at, reviewed_at FROM revisions ORDER BY submitted_at DESC",
         ).all();
+        return rows.map(stripProof);
     });
 
     // POST /api/admin/revisions/:id/approve — apply revision to the fact
@@ -226,15 +285,20 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
         const id = parseInt(req.params.id, 10);
 
         const rev = db
-            .query<Pick<Revision, "id" | "fact_id" | "content" | "status">, [number]>(
-                "SELECT id, fact_id, content, status FROM revisions WHERE id = ?",
+            .query<Pick<RevisionRow, "id" | "fact_id" | "content" | "proof" | "status">, [number]>(
+                "SELECT id, fact_id, content, proof, status FROM revisions WHERE id = ?",
             )
             .get(id);
 
         if (!rev) return reply.code(404).send({ error: "Revision not found" });
         if (rev.status !== "pending") return reply.code(400).send({ error: "Revision already reviewed" });
 
-        db.query("UPDATE facts SET content = ? WHERE id = ?").run(rev.content, rev.fact_id);
+        if (rev.proof !== null) {
+            db.query("UPDATE facts SET content = ?, proof = ? WHERE id = ?").run(rev.content, rev.proof, rev.fact_id);
+        }
+        else {
+            db.query("UPDATE facts SET content = ? WHERE id = ?").run(rev.content, rev.fact_id);
+        }
         db.query(
             "UPDATE revisions SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
         ).run(id);
@@ -243,7 +307,7 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
     });
 
     // POST /api/admin/revisions/:id/approve-revision — approve with edits
-    app.post<{ Params: { id: string }; Body: { content?: unknown } }>("/revisions/:id/approve-revision", async(req, reply) => {
+    app.post<{ Params: { id: string }; Body: { content?: unknown; proof?: unknown } }>("/revisions/:id/approve-revision", async(req, reply) => {
         if (!requireAuth(req, reply)) return;
         const db = getDb();
         const id = parseInt(req.params.id, 10);
@@ -256,8 +320,16 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
             return reply.code(400).send({ error: "Content must be 500 characters or fewer" });
         }
 
+        const hasProof = req.body?.proof !== undefined;
+        let newProof: string | null | undefined;
+        if (hasProof) {
+            const proofResult = validateProof(req.body?.proof);
+            if (!proofResult.ok) return reply.code(400).send({ error: proofResult.error });
+            newProof = proofResult.value;
+        }
+
         const rev = db
-            .query<Pick<Revision, "id" | "fact_id" | "status">, [number]>(
+            .query<Pick<RevisionRow, "id" | "fact_id" | "status">, [number]>(
                 "SELECT id, fact_id, status FROM revisions WHERE id = ?",
             )
             .get(id);
@@ -265,7 +337,12 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
         if (!rev) return reply.code(404).send({ error: "Revision not found" });
         if (rev.status !== "pending") return reply.code(400).send({ error: "Revision already reviewed" });
 
-        db.query("UPDATE facts SET content = ? WHERE id = ?").run(content.trim(), rev.fact_id);
+        if (hasProof) {
+            db.query("UPDATE facts SET content = ?, proof = ? WHERE id = ?").run(content.trim(), newProof ?? null, rev.fact_id);
+        }
+        else {
+            db.query("UPDATE facts SET content = ? WHERE id = ?").run(content.trim(), rev.fact_id);
+        }
         db.query(
             "UPDATE revisions SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP WHERE id = ?",
         ).run(id);
@@ -280,7 +357,7 @@ export const adminRoutes: FastifyPluginAsync = async(app) => {
         const id = parseInt(req.params.id, 10);
 
         const rev = db
-            .query<Pick<Revision, "id" | "status">, [number]>(
+            .query<Pick<RevisionRow, "id" | "status">, [number]>(
                 "SELECT id, status FROM revisions WHERE id = ?",
             )
             .get(id);

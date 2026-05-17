@@ -11,15 +11,18 @@ A simple Math Facts API built with Fastify and Bun. Serves mathematical facts an
 ### Public
 
 #### `GET /api/facts`
-Returns all facts in the database.
+Returns all facts in the database. Each fact may optionally include a `proof` URL.
 
 **Response** `200`
 ```json
 [
   { "id": 1, "content": "A prime number has exactly two divisors: 1 and itself." },
+  { "id": 2, "content": "The number pi is irrational.", "proof": "https://example.org/pi-proof.pdf" },
   ...
 ]
 ```
+
+The `proof` field is omitted when no proof link is set for that fact.
 
 ---
 
@@ -31,9 +34,9 @@ Returns a single random fact.
 |-------|------|-------------|
 | `exclude` | string (optional) | Comma-separated fact IDs to exclude — e.g. `?exclude=1,2,3` |
 
-**Response** `200`
+**Response** `200` (the `proof` field is included only when the fact has one)
 ```json
-{ "id": 4, "content": "The number pi is irrational." }
+{ "id": 4, "content": "The number pi is irrational.", "proof": "https://example.org/pi-proof.pdf" }
 ```
 
 **Response** `404` — when no facts are available (or all are excluded)
@@ -44,11 +47,11 @@ Returns a single random fact.
 ---
 
 #### `GET /api/facts/:id`
-Returns a single fact by its numeric ID.
+Returns a single fact by its numeric ID. The `proof` field is included only when the fact has one.
 
 **Response** `200`
 ```json
-{ "id": 42, "content": "A monad is just a monoid in the category of endofunctors." }
+{ "id": 42, "content": "A monad is just a monoid in the category of endofunctors.", "proof": "https://ncatlab.org/nlab/show/monad" }
 ```
 
 **Response** `404`
@@ -71,10 +74,10 @@ Fuzzy text search across all facts. Scores by full-phrase match and individual w
 |-------|------|-------------|
 | `text` | string (required) | Search phrase, e.g. `monoidal category` |
 
-**Response** `200`
+**Response** `200` (each fact may include a `proof` field when set)
 ```json
 {
-  "bestMatch": { "id": 7, "content": "A monoid in a monoidal category is the categorical generalisation of a monoid." },
+  "bestMatch": { "id": 7, "content": "A monoid in a monoidal category is the categorical generalisation of a monoid.", "proof": "https://example.org/source" },
   "matches": [
     { "id": 3, "content": "..." }
   ]
@@ -94,16 +97,20 @@ Fuzzy text search across all facts. Scores by full-phrase match and individual w
 ---
 
 #### `POST /api/facts/submit`
-Submit a new fact for admin review.
+Submit a new fact for admin review. Optionally include a link to a proof or source.
 
 **Body** `application/json`
 ```json
-{ "fact": "Zero is the only number that is neither positive nor negative." }
+{
+  "fact": "Zero is the only number that is neither positive nor negative.",
+  "proof": "https://example.org/zero-properties.pdf"
+}
 ```
 
 | Field | Type | Rules |
 |-------|------|-------|
 | `fact` | string | Required, max 500 characters |
+| `proof` | string | Optional. Must be a valid `http://` or `https://` URL, max 500 characters |
 
 **Response** `201`
 ```json
@@ -115,6 +122,12 @@ Submit a new fact for admin review.
 { "error": "'fact' field is required" }
 // or
 { "error": "Fact must be 500 characters or fewer" }
+// or
+{ "error": "Proof must be a valid URL" }
+// or
+{ "error": "Proof URL must use http or https" }
+// or
+{ "error": "Proof URL must be 500 characters or fewer" }
 ```
 
 ---
@@ -129,12 +142,16 @@ Submit a revision to an existing fact for admin review.
 
 **Body** `application/json`
 ```json
-{ "content": "A monad is a monoid in the category of endofunctors." }
+{
+  "content": "A monad is a monoid in the category of endofunctors.",
+  "proof": "https://ncatlab.org/nlab/show/monad"
+}
 ```
 
 | Field | Type | Rules |
 |-------|------|-------|
 | `content` | string | Required, max 500 characters |
+| `proof` | string | Optional. Must be a valid `http://` or `https://` URL, max 500 characters. If approved, replaces the fact's existing proof. |
 
 **Response** `201`
 ```json
@@ -146,6 +163,8 @@ Submit a revision to an existing fact for admin review.
 { "error": "'content' field is required" }
 // or
 { "error": "Content must be 500 characters or fewer" }
+// or
+{ "error": "Proof must be a valid URL" }
 ```
 
 **Response** `404`
@@ -175,12 +194,13 @@ The `admin_pass` is set in `config/config.custom.ts`.
 #### `GET /api/admin/submissions`
 List all submissions sorted by submission date (newest first).
 
-**Response** `200`
+**Response** `200` (the `proof` field is included only when the submitter provided one)
 ```json
 [
   {
     "id": 1,
     "content": "Every even integer greater than 2 is the sum of two primes.",
+    "proof": "https://example.org/goldbach.pdf",
     "status": "pending",
     "submitted_at": "2026-03-16T12:00:00Z",
     "reviewed_at": null
@@ -194,7 +214,7 @@ List all submissions sorted by submission date (newest first).
 ---
 
 #### `POST /api/admin/submissions/:id/approve`
-Approve a pending submission. Adds the fact to the live facts list.
+Approve a pending submission. Adds the fact (with its submitted proof, if any) to the live facts list.
 
 **Response** `200`
 ```json
@@ -236,13 +256,14 @@ Reject a pending submission.
 #### `GET /api/admin/revisions`
 List all revisions sorted by submission date (newest first).
 
-**Response** `200`
+**Response** `200` (the `proof` field is included only when the revision proposed one)
 ```json
 [
   {
     "id": 1,
     "fact_id": 42,
     "content": "Revised text for the fact.",
+    "proof": "https://example.org/proof.pdf",
     "status": "pending",
     "submitted_at": "2026-04-20T12:00:00Z",
     "reviewed_at": null
@@ -256,7 +277,7 @@ List all revisions sorted by submission date (newest first).
 ---
 
 #### `POST /api/admin/revisions/:id/approve`
-Approve a pending revision. Updates the original fact's text.
+Approve a pending revision. Updates the original fact's text. If the revision also proposed a `proof` URL, the fact's `proof` is updated as well.
 
 **Response** `200`
 ```json
@@ -276,12 +297,20 @@ Approve a pending revision. Updates the original fact's text.
 ---
 
 #### `POST /api/admin/revisions/:id/approve-revision`
-Approve a revision with edits. Updates the original fact with the provided text instead.
+Approve a revision with edits. Updates the original fact with the provided text instead. Optionally also sets/clears the fact's `proof`.
 
 **Body** `application/json`
 ```json
-{ "content": "Edited revision text" }
+{
+  "content": "Edited revision text",
+  "proof": "https://example.org/proof.pdf"
+}
 ```
+
+| Field | Type | Rules |
+|-------|------|-------|
+| `content` | string | Required, max 500 characters |
+| `proof` | string \| `""` | Optional. If omitted, the fact's existing proof is kept. If provided, must be a valid `http`/`https` URL (max 500 chars). Pass an empty string to clear the existing proof. |
 
 **Response** `200`
 ```json

@@ -87,6 +87,7 @@
             <textarea id="submit-input" rows="4" maxlength="500" placeholder="A fascinating mathematical fact…"></textarea>
             <div class="char-count"><span id="char-num">0</span> / 500</div>
           </div>
+          <input type="url" id="submit-proof-input" maxlength="500" placeholder="Proof link (optional) — https://…" />
           <button class="btn btn-primary" id="btn-submit">Submit for Review</button>
           <div class="alert" id="submit-alert"></div>
         </div>
@@ -136,6 +137,7 @@
             <textarea id="revise-input" rows="4" maxlength="500" placeholder="Your revised text for this fact…"></textarea>
             <div class="char-count"><span id="revise-char-num">0</span> / 500</div>
           </div>
+          <input type="url" id="revise-proof-input" maxlength="500" placeholder="Proof link (optional) — https://…" />
           <button class="btn btn-primary" id="btn-revise">Submit Revision</button>
           <div class="alert" id="revise-alert"></div>
         </div>
@@ -161,10 +163,10 @@
           <div class="doc-section">
             <div class="doc-label">Response</div>
             <div class="copy-btn-wrap">
-              <pre><span class="comment">// 200 OK — array of fact objects</span>
+              <pre><span class="comment">// 200 OK — array of fact objects ("proof" omitted when not set)</span>
   [
     { <span class="str">"id"</span>: <span class="num">1</span>, <span class="str">"content"</span>: <span class="str">"All abelian groups are solvable."</span> },
-    { <span class="str">"id"</span>: <span class="num">2</span>, <span class="str">"content"</span>: <span class="str">"The only factorial that's also a square is 1."</span> },
+    { <span class="str">"id"</span>: <span class="num">2</span>, <span class="str">"content"</span>: <span class="str">"The only factorial that's also a square is 1."</span>, <span class="str">"proof"</span>: <span class="str">"https://example.org/proof.pdf"</span> },
     <span class="comment">// …</span>
   ]</pre>
               <button class="copy-btn">Copy</button>
@@ -208,8 +210,8 @@
           <div class="doc-section">
             <div class="doc-label">Response</div>
             <div class="copy-btn-wrap">
-              <pre><span class="comment">// 200 OK</span>
-  { <span class="str">"id"</span>: <span class="num">42</span>, <span class="str">"content"</span>: <span class="str">"A monad is just a monoid in the category of endofunctors."</span> }
+              <pre><span class="comment">// 200 OK — "proof" included when set</span>
+  { <span class="str">"id"</span>: <span class="num">42</span>, <span class="str">"content"</span>: <span class="str">"A monad is just a monoid in the category of endofunctors."</span>, <span class="str">"proof"</span>: <span class="str">"https://ncatlab.org/nlab/show/monad"</span> }
 
   <span class="comment">// 404 — all facts excluded</span>
   { <span class="str">"error"</span>: <span class="str">"No facts available"</span> }</pre>
@@ -248,6 +250,12 @@
                   <td>Yes</td>
                   <td>The math fact to submit. Max 500 characters.</td>
                 </tr>
+                <tr>
+                  <td><code>proof</code></td>
+                  <td><code>string</code></td>
+                  <td>No</td>
+                  <td>Optional http/https URL pointing to a proof or source. Max 500 characters.</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -258,7 +266,8 @@
   { <span class="str">"message"</span>: <span class="str">"Fact submitted for review. Thank you!"</span> }
 
   <span class="comment">// 400 Bad Request</span>
-  { <span class="str">"error"</span>: <span class="str">"'fact' field is required"</span> }</pre>
+  { <span class="str">"error"</span>: <span class="str">"'fact' field is required"</span> }
+  { <span class="str">"error"</span>: <span class="str">"Proof must be a valid URL"</span> }</pre>
               <button class="copy-btn">Copy</button>
             </div>
           </div>
@@ -267,7 +276,7 @@
             <div class="copy-btn-wrap">
               <pre>curl -X POST https://nulldev.org/mathfacts/api/facts/submit \
     -H "Content-Type: application/json" \
-    -d '{"fact": "Every prime greater than 2 is odd."}'</pre>
+    -d '{"fact": "Every prime greater than 2 is odd.", "proof": "https://example.org/proof.pdf"}'</pre>
               <button class="copy-btn">Copy</button>
             </div>
           </div>
@@ -297,8 +306,8 @@
           <div class="doc-section">
             <div class="doc-label">Response</div>
             <div class="copy-btn-wrap">
-              <pre><span class="comment">// 200 OK</span>
-  { <span class="str">"id"</span>: <span class="num">42</span>, <span class="str">"content"</span>: <span class="str">"A monad is just a monoid in the category of endofunctors."</span> }
+              <pre><span class="comment">// 200 OK — "proof" included when set</span>
+  { <span class="str">"id"</span>: <span class="num">42</span>, <span class="str">"content"</span>: <span class="str">"A monad is just a monoid in the category of endofunctors."</span>, <span class="str">"proof"</span>: <span class="str">"https://ncatlab.org/nlab/show/monad"</span> }
 
   <span class="comment">// 404 — not found</span>
   { <span class="str">"error"</span>: <span class="str">"Fact not found"</span> }</pre>
@@ -343,9 +352,9 @@
           <div class="doc-section">
             <div class="doc-label">Response</div>
             <div class="copy-btn-wrap">
-              <pre><span class="comment">// 200 OK</span>
+              <pre><span class="comment">// 200 OK — "proof" included on each match when set</span>
   {
-    <span class="str">"bestMatch"</span>: { <span class="str">"id"</span>: <span class="num">7</span>, <span class="str">"content"</span>: <span class="str">"A monoid in a monoidal category..."</span> },
+    <span class="str">"bestMatch"</span>: { <span class="str">"id"</span>: <span class="num">7</span>, <span class="str">"content"</span>: <span class="str">"A monoid in a monoidal category..."</span>, <span class="str">"proof"</span>: <span class="str">"https://example.org/source"</span> },
     <span class="str">"matches"</span>: [
       { <span class="str">"id"</span>: <span class="num">3</span>, <span class="str">"content"</span>: <span class="str">"..."</span> }
     ]
@@ -400,6 +409,12 @@
                   <td>Yes</td>
                   <td>The revised text for the fact. Max 500 characters.</td>
                 </tr>
+                <tr>
+                  <td><code>proof</code></td>
+                  <td><code>string</code></td>
+                  <td>No</td>
+                  <td>Optional http/https URL to propose alongside the revision. Max 500 characters.</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -411,6 +426,7 @@
 
   <span class="comment">// 400 Bad Request</span>
   { <span class="str">"error"</span>: <span class="str">"'content' field is required"</span> }
+  { <span class="str">"error"</span>: <span class="str">"Proof must be a valid URL"</span> }
 
   <span class="comment">// 404 — fact not found</span>
   { <span class="str">"error"</span>: <span class="str">"Fact not found"</span> }</pre>
@@ -422,7 +438,7 @@
             <div class="copy-btn-wrap">
               <pre>curl -X POST https://nulldev.org/mathfacts/api/facts/42/revise \
     -H "Content-Type: application/json" \
-    -d '{"content": "A monad is a monoid in the category of endofunctors."}'</pre>
+    -d '{"content": "A monad is a monoid in the category of endofunctors.", "proof": "https://ncatlab.org/nlab/show/monad"}'</pre>
               <button class="copy-btn">Copy</button>
             </div>
           </div>

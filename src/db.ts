@@ -13,6 +13,13 @@ export function getDb(): Database {
     return db;
 }
 
+function ensureColumn(table: string, column: string, def: string): void {
+    const cols = db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
+    if (!cols.some((c: { name: string }) => c.name === column)) {
+        db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`);
+    }
+}
+
 export function initDb(): void {
     db = new Database("data/mathfacts.db", { create: true });
 
@@ -21,12 +28,14 @@ export function initDb(): void {
     db.run(`
         CREATE TABLE IF NOT EXISTS facts (
             id   INTEGER PRIMARY KEY AUTOINCREMENT,
-            content TEXT NOT NULL UNIQUE
+            content TEXT NOT NULL UNIQUE,
+            proof   TEXT
         );
 
         CREATE TABLE IF NOT EXISTS submissions (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
             content      TEXT NOT NULL,
+            proof        TEXT,
             status       TEXT NOT NULL DEFAULT 'pending',
             submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             reviewed_at  DATETIME
@@ -36,12 +45,17 @@ export function initDb(): void {
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
             fact_id      INTEGER NOT NULL,
             content      TEXT NOT NULL,
+            proof        TEXT,
             status       TEXT NOT NULL DEFAULT 'pending',
             submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             reviewed_at  DATETIME,
             FOREIGN KEY (fact_id) REFERENCES facts(id)
         );
     `);
+
+    ensureColumn("facts", "proof", "TEXT");
+    ensureColumn("submissions", "proof", "TEXT");
+    ensureColumn("revisions", "proof", "TEXT");
 
     // Seed initial facts if the table is empty
     const row = db.query<{ count: number }, []>(

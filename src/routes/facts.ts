@@ -9,9 +9,40 @@ import { config } from "../../config/config.js";
 // =     - SPDX: MIT -     = //
 // ========================= //
 
-interface Fact {
+interface FactRow {
     id: number;
     content: string;
+    proof: string | null;
+}
+
+interface FactResponse {
+    id: number;
+    content: string;
+    proof?: string;
+}
+
+function toResponse(row: FactRow): FactResponse {
+    const out: FactResponse = { id: row.id, content: row.content };
+    if (row.proof) out.proof = row.proof;
+    return out;
+}
+
+function validateProof(value: unknown): { ok: true; value: string | null } | { ok: false; error: string } {
+    if (value === undefined || value === null || value === "") return { ok: true, value: null };
+    if (typeof value !== "string") return { ok: false, error: "'proof' must be a string URL" };
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return { ok: true, value: null };
+    if (trimmed.length > 500) return { ok: false, error: "Proof URL must be 500 characters or fewer" };
+    try {
+        const url = new URL(trimmed);
+        if (url.protocol !== "http:" && url.protocol !== "https:") {
+            return { ok: false, error: "Proof URL must use http or https" };
+        }
+    }
+    catch {
+        return { ok: false, error: "Proof must be a valid URL" };
+    }
+    return { ok: true, value: trimmed };
 }
 
 function fuzzyScore(content: string, query: string): number {
@@ -34,7 +65,8 @@ export const factsRoutes: FastifyPluginAsync = async(app) => {
     // GET /api/facts — return all facts
     app.get("/facts", async() => {
         const db = getDb();
-        return db.query<Fact, []>("SELECT id, content FROM facts ORDER BY id").all();
+        const rows = db.query<FactRow, []>("SELECT id, content, proof FROM facts ORDER BY id").all();
+        return rows.map(toResponse);
     });
 
     // GET /api/facts/random?exclude=1,2,3
@@ -47,20 +79,20 @@ export const factsRoutes: FastifyPluginAsync = async(app) => {
             .map((s) => parseInt(s.trim(), 10))
             .filter((n) => Number.isFinite(n) && n > 0);
 
-        let fact: Fact | null;
+        let fact: FactRow | null;
 
         if (excludeIds.length > 0) {
             const placeholders = excludeIds.map(() => "?").join(", ");
             fact = db
-                .query<Fact, number[]>(
-                    `SELECT id, content FROM facts WHERE id NOT IN (${placeholders}) ORDER BY RANDOM() LIMIT 1`,
+                .query<FactRow, number[]>(
+                    `SELECT id, content, proof FROM facts WHERE id NOT IN (${placeholders}) ORDER BY RANDOM() LIMIT 1`,
                 )
                 .get(...excludeIds);
         }
         else {
             fact = db
-                .query<Fact, []>(
-                    "SELECT id, content FROM facts ORDER BY RANDOM() LIMIT 1",
+                .query<FactRow, []>(
+                    "SELECT id, content, proof FROM facts ORDER BY RANDOM() LIMIT 1",
                 )
                 .get();
         }
@@ -69,7 +101,7 @@ export const factsRoutes: FastifyPluginAsync = async(app) => {
             return reply.code(404).send({ error: "No facts available" });
         }
 
-        return fact;
+        return toResponse(fact);
     });
 
     // GET /api/facts/search?text= — fuzzy text search
@@ -78,20 +110,18 @@ export const factsRoutes: FastifyPluginAsync = async(app) => {
         if (!text) return reply.code(400).send({ error: "'text' query parameter is required" });
 
         const db = getDb();
-        const facts = db.query<Fact, []>("SELECT id, content FROM facts ORDER BY id").all();
+        const facts = db.query<FactRow, []>("SELECT id, content, proof FROM facts ORDER BY id").all();
 
         const scored = facts
-            .map(f => ({ ...f, score: fuzzyScore(f.content, text) }))
-            .filter(f => f.score > 0)
+            .map(f => ({ row: f, score: fuzzyScore(f.content, text) }))
+            .filter(x => x.score > 0)
             .sort((a, b) => b.score - a.score);
 
         if (scored.length === 0) return reply.code(404).send({ error: "No matching facts found" });
 
         const [best, ...rest] = scored;
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { score: _b, ...bestMatch } = best;
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const matches = rest.map(({ score: _s, ...f }) => f);
+        const bestMatch = toResponse(best.row);
+        const matches = rest.map(x => toResponse(x.row));
 
         return { bestMatch, matches };
     });
@@ -103,18 +133,18 @@ export const factsRoutes: FastifyPluginAsync = async(app) => {
 
         const db = getDb();
         const fact = db
-            .query<Fact, [number]>("SELECT id, content FROM facts WHERE id = ?")
+            .query<FactRow, [number]>("SELECT id, content, proof FROM facts WHERE id = ?")
             .get(id);
 
         if (!fact) return reply.code(404).send({ error: "Fact not found" });
-        return fact;
+        return toResponse(fact);
     });
 
     // POST /api/facts/submit — submit a fact for review
     const submitPerMinute = createRateLimit("submit-minute", 2, 60_000, "Submission rate limit exceeded. Max 2 per minute.");
     const submitPerHour = createRateLimit("submit-hour", 10, 3_600_000, "Hourly submission limit exceeded. Max 10 per hour.");
 
-    app.post<{ Body: { fact?: string } }>("/facts/submit", {
+    app.post<{ Body: { fact?: string; proof?: unknown } }>("/facts/submit", {
         onRequest: [submitPerMinute, submitPerHour],
     }, async(req, reply) => {
         const fact = req.body?.fact;
@@ -129,11 +159,14 @@ export const factsRoutes: FastifyPluginAsync = async(app) => {
             return reply.code(400).send({ error: "Fact must be 500 characters or fewer" });
         }
 
+        const proofResult = validateProof(req.body?.proof);
+        if (!proofResult.ok) return reply.code(400).send({ error: proofResult.error });
+
         const db = getDb();
-        db.query("INSERT INTO submissions (content) VALUES (?)").run(trimmed);
+        db.query("INSERT INTO submissions (content, proof) VALUES (?, ?)").run(trimmed, proofResult.value);
 
         const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
-        Log.info(`New submission from IP ${ip}: ${trimmed}`);
+        Log.info(`New submission from IP ${ip}: ${trimmed}${proofResult.value ? ` (proof: ${proofResult.value})` : ""}`);
 
         if (config.dc_webhook) {
             try {
@@ -141,7 +174,7 @@ export const factsRoutes: FastifyPluginAsync = async(app) => {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        content: `---\nNew fact submission:\n\`\`\`${trimmed}\`\`\`\nFrom IP: ${ip}\n<https://nulldev.org/mathfacts/admin.html>\n---`,
+                        content: `---\nNew fact submission:\n\`\`\`${trimmed}\`\`\`${proofResult.value ? `\nProof: <${proofResult.value}>` : ""}\nFrom IP: ${ip}\n<https://nulldev.org/mathfacts/admin.html>\n---`,
                     }),
                 });
             }
@@ -157,7 +190,7 @@ export const factsRoutes: FastifyPluginAsync = async(app) => {
     const revisePerMinute = createRateLimit("revise-minute", 2, 60_000, "Revision rate limit exceeded. Max 2 per minute.");
     const revisePerHour = createRateLimit("revise-hour", 10, 3_600_000, "Hourly revision limit exceeded. Max 10 per hour.");
 
-    app.post<{ Params: { id: string }; Body: { content?: string } }>("/facts/:id/revise", {
+    app.post<{ Params: { id: string }; Body: { content?: string; proof?: unknown } }>("/facts/:id/revise", {
         onRequest: [revisePerMinute, revisePerHour],
     }, async(req, reply) => {
         const factId = parseInt(req.params.id, 10);
@@ -175,16 +208,19 @@ export const factsRoutes: FastifyPluginAsync = async(app) => {
             return reply.code(400).send({ error: "Content must be 500 characters or fewer" });
         }
 
+        const proofResult = validateProof(req.body?.proof);
+        if (!proofResult.ok) return reply.code(400).send({ error: proofResult.error });
+
         const db = getDb();
-        const fact = db.query<Fact, [number]>("SELECT id FROM facts WHERE id = ?").get(factId);
+        const fact = db.query<{ id: number }, [number]>("SELECT id FROM facts WHERE id = ?").get(factId);
         if (!fact) {
             return reply.code(404).send({ error: "Fact not found" });
         }
 
-        db.query("INSERT INTO revisions (fact_id, content) VALUES (?, ?)").run(factId, trimmed);
+        db.query("INSERT INTO revisions (fact_id, content, proof) VALUES (?, ?, ?)").run(factId, trimmed, proofResult.value);
 
         const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
-        Log.info(`New revision for fact #${factId} from IP ${ip}: ${trimmed}`);
+        Log.info(`New revision for fact #${factId} from IP ${ip}: ${trimmed}${proofResult.value ? ` (proof: ${proofResult.value})` : ""}`);
 
         if (config.dc_webhook) {
             try {
@@ -192,7 +228,7 @@ export const factsRoutes: FastifyPluginAsync = async(app) => {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        content: `---\nNew revision for fact #${factId}:\n\`\`\`${trimmed}\`\`\`\nFrom IP: ${ip}\n<https://nulldev.org/mathfacts/admin.html>\n---`,
+                        content: `---\nNew revision for fact #${factId}:\n\`\`\`${trimmed}\`\`\`${proofResult.value ? `\nProof: <${proofResult.value}>` : ""}\nFrom IP: ${ip}\n<https://nulldev.org/mathfacts/admin.html>\n---`,
                     }),
                 });
             }

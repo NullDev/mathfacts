@@ -57,6 +57,15 @@ function escHtml(str) {
         .replace(/"/g, "&quot;");
 }
 
+/**
+ * @param {string | undefined | null} url
+ * @returns {string}
+ */
+function proofHtml(url) {
+    if (!url) return "";
+    return ` <a class="proof-link" href="${escHtml(url)}" target="_blank" rel="noopener noreferrer" title="View proof">↗ proof</a>`;
+}
+
 document.getElementById("btn-random")?.addEventListener("click", async() => {
     const btn = /** @type {HTMLButtonElement | null} */ (document.getElementById("btn-random"));
     if (!btn) return;
@@ -85,7 +94,8 @@ document.getElementById("btn-random")?.addEventListener("click", async() => {
         const box = document.getElementById("random-display");
         if (!box) return;
         box.className = "fact-box has-fact";
-        box.innerHTML = `<span class="fact-id">#${data.id}</span>${escHtml(data.content)}`;
+        // Both data.content and data.proof are escaped via escHtml before insertion
+        box.innerHTML = `<span class="fact-id">#${data.id}</span>${escHtml(data.content)}${proofHtml(data.proof)}`;
 
         if (!seenIds.includes(data.id)) {
             seenIds.push(data.id);
@@ -128,8 +138,8 @@ document.getElementById("btn-all")?.addEventListener("click", async() => {
         const count = document.getElementById("all-count");
 
         if (!list || !wrap || !count) return;
-        list.innerHTML = data.map((/** @type {{ id: any; content: any; }} */ f) =>
-            `<li><span class="fact-num">#${f.id}</span><span>${escHtml(f.content)}</span></li>`,
+        list.innerHTML = data.map((/** @type {{ id: any; content: any; proof?: any; }} */ f) =>
+            `<li><span class="fact-num">#${f.id}</span><span>${escHtml(f.content)}${proofHtml(f.proof)}</span></li>`,
         ).join("");
 
         count.textContent = `${data.length} fact${data.length !== 1 ? "s" : ""} loaded`;
@@ -154,6 +164,8 @@ document.getElementById("btn-submit")?.addEventListener("click", async() => {
     const btn = /** @type {HTMLButtonElement | null} */ (document.getElementById("btn-submit"));
     if (!btn) return;
     const fact = submitInput?.value.trim();
+    const proofInput = /** @type {HTMLInputElement | null} */ (document.getElementById("submit-proof-input"));
+    const proof = proofInput?.value.trim() ?? "";
 
     if (!fact) {
         showAlert("submit-alert", "error", "Please enter a fact before submitting.");
@@ -163,10 +175,13 @@ document.getElementById("btn-submit")?.addEventListener("click", async() => {
     setLoading(btn, true);
 
     try {
+        /** @type {Record<string, string>} */
+        const body = { fact };
+        if (proof) body.proof = proof;
         const res = await fetch("api/facts/submit", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fact }),
+            body: JSON.stringify(body),
         });
         const data = await res.json();
 
@@ -176,6 +191,7 @@ document.getElementById("btn-submit")?.addEventListener("click", async() => {
         else {
             showAlert("submit-alert", "success", data.message);
             if (submitInput) submitInput.value = "";
+            if (proofInput) proofInput.value = "";
             const charNum = document.getElementById("char-num");
             if (charNum) charNum.textContent = "0";
         }
@@ -215,7 +231,8 @@ document.getElementById("btn-byid")?.addEventListener("click", async() => {
         }
 
         display.className = "fact-box has-fact";
-        display.innerHTML = `<span class="fact-id">#${data.id}</span>${escHtml(data.content)}`;
+        // content + proof are escaped via escHtml / proofHtml
+        display.innerHTML = `<span class="fact-id">#${data.id}</span>${escHtml(data.content)}${proofHtml(data.proof)}`;
     }
     catch {
         showAlert("byid-alert", "error", "Network error. Is the server running?");
@@ -257,14 +274,15 @@ document.getElementById("btn-search")?.addEventListener("click", async() => {
         const bestEl = document.getElementById("search-best");
         if (bestEl) {
             bestEl.className = "fact-box has-fact";
-            bestEl.innerHTML = `<span class="fact-id">#${data.bestMatch.id}</span>${escHtml(data.bestMatch.content)}`;
+            // content + proof are escaped via escHtml / proofHtml
+            bestEl.innerHTML = `<span class="fact-id">#${data.bestMatch.id}</span>${escHtml(data.bestMatch.content)}${proofHtml(data.bestMatch.proof)}`;
         }
 
         const listEl = document.getElementById("search-list");
         if (listEl) {
             listEl.innerHTML = data.matches.length
-                ? data.matches.map((/** @type {{ id: any; content: any; }} */ f) =>
-                    `<li><span class="fact-num">#${f.id}</span><span>${escHtml(f.content)}</span></li>`,
+                ? data.matches.map((/** @type {{ id: any; content: any; proof?: any; }} */ f) =>
+                    `<li><span class="fact-num">#${f.id}</span><span>${escHtml(f.content)}${proofHtml(f.proof)}</span></li>`,
                 ).join("")
                 : "<li style='color:var(--text-muted);font-size:.875rem'>No other matches.</li>";
         }
@@ -294,8 +312,10 @@ document.getElementById("btn-revise")?.addEventListener("click", async() => {
     const btn = /** @type {HTMLButtonElement | null} */ (document.getElementById("btn-revise"));
     if (!btn) return;
     const idInput = /** @type {HTMLInputElement | null} */ (document.getElementById("revise-id-input"));
+    const proofInput = /** @type {HTMLInputElement | null} */ (document.getElementById("revise-proof-input"));
     const factId = idInput?.value.trim();
     const content = reviseInput?.value.trim();
+    const proof = proofInput?.value.trim() ?? "";
 
     if (!factId) {
         showAlert("revise-alert", "error", "Please enter a fact ID.");
@@ -309,10 +329,13 @@ document.getElementById("btn-revise")?.addEventListener("click", async() => {
     setLoading(btn, true);
 
     try {
+        /** @type {Record<string, string>} */
+        const body = { content };
+        if (proof) body.proof = proof;
         const res = await fetch(`api/facts/${encodeURIComponent(factId)}/revise`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ content }),
+            body: JSON.stringify(body),
         });
         const data = await res.json();
 
@@ -323,6 +346,7 @@ document.getElementById("btn-revise")?.addEventListener("click", async() => {
             showAlert("revise-alert", "success", data.message);
             if (reviseInput) reviseInput.value = "";
             if (idInput) idInput.value = "";
+            if (proofInput) proofInput.value = "";
             const charNum = document.getElementById("revise-char-num");
             if (charNum) charNum.textContent = "0";
         }

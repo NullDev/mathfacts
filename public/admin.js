@@ -88,6 +88,16 @@ function escHtml(str) {
 }
 
 /**
+ * @param {string | undefined | null} url
+ * @param {string} [label]
+ * @returns {string}
+ */
+function proofChip(url, label = "proof") {
+    if (!url) return "";
+    return `<a class="proof-chip" href="${escHtml(url)}" target="_blank" rel="noopener noreferrer" title="${escHtml(url)}">↗ ${escHtml(label)}</a>`;
+}
+
+/**
  * @param {HTMLElement} container
  */
 function renderFacts(container) {
@@ -101,13 +111,15 @@ function renderFacts(container) {
     }
 
     container.innerHTML = facts.map(/** @type {(f: any) => string} */ (f) => `
-        <div class="sub-card fact-card" id="fact-${f.id}" data-fact-content="${escHtml(f.content)}">
+        <div class="sub-card fact-card" id="fact-${f.id}" data-fact-content="${escHtml(f.content)}" data-fact-proof="${escHtml(f.proof ?? "")}">
             <div class="fact-display">
                 <div class="sub-content">${escHtml(f.content)}</div>
+                ${f.proof ? `<div class="proof-row">${proofChip(f.proof)}<span class="proof-url">${escHtml(f.proof)}</span></div>` : ""}
                 <div class="sub-meta">
                     <span>#${f.id}</span>
                 </div>
                 <div class="sub-actions">
+                    ${f.proof ? "" : `<button class="btn btn-sm btn-ghost" data-fact-id="${f.id}" data-action="add-proof">+ Add Proof</button>`}
                     <button class="btn btn-sm btn-ghost" data-fact-id="${f.id}" data-action="edit-fact">✎ Edit</button>
                     <button class="btn btn-sm btn-danger" data-fact-id="${f.id}" data-action="delete-fact">✗ Delete</button>
                 </div>
@@ -137,16 +149,24 @@ function renderRevisions(container) {
     container.innerHTML = pending.map(/** @type {(rev: any) => string} */ (rev) => {
         const date = new Date(rev.submitted_at).toLocaleString();
         const originalFact = facts.find(f => f.id === rev.fact_id);
+        const originalProofHtml = originalFact && originalFact.proof
+            ? `<div class="proof-row">${proofChip(originalFact.proof, "current proof")}<span class="proof-url">${escHtml(originalFact.proof)}</span></div>`
+            : "";
         const originalHtml = originalFact ? `
             <div class="similar-facts">
                 <div class="similar-label">Original fact #${rev.fact_id}:</div>
                 <div class="similar-item">${escHtml(originalFact.content)}</div>
+                ${originalProofHtml}
             </div>
         ` : `<div class="similar-facts"><div class="similar-label">Original fact #${rev.fact_id} (not found)</div></div>`;
+        const proposedProofHtml = rev.proof
+            ? `<div class="proof-row">${proofChip(rev.proof, "proposed proof")}<span class="proof-url">${escHtml(rev.proof)}</span></div>`
+            : "";
 
         return `
-            <div class="sub-card" id="rev-${rev.id}" data-content="${escHtml(rev.content)}">
+            <div class="sub-card" id="rev-${rev.id}" data-content="${escHtml(rev.content)}" data-proof="${escHtml(rev.proof ?? "")}">
                 <div class="sub-content">${escHtml(rev.content)}</div>
+                ${proposedProofHtml}
                 ${originalHtml}
                 <div class="sub-meta">
                     <span>#${rev.id}</span>
@@ -223,9 +243,14 @@ function renderList() {
             </div>
         ` : "";
 
+        const proofHtmlForSub = sub.proof
+            ? `<div class="proof-row">${proofChip(sub.proof, "submitted proof")}<span class="proof-url">${escHtml(sub.proof)}</span></div>`
+            : "";
+
         return `
-            <div class="sub-card" id="sub-${sub.id}" data-content="${escHtml(sub.content)}">
+            <div class="sub-card" id="sub-${sub.id}" data-content="${escHtml(sub.content)}" data-proof="${escHtml(sub.proof ?? "")}">
                 <div class="sub-content">${escHtml(sub.content)}</div>
+                ${proofHtmlForSub}
                 ${similarHtml}
                 <div class="sub-meta">
                 <span>#${sub.id}</span>
@@ -389,17 +414,21 @@ async function doReview(id, action) {
 /**
  * @param {any} id
  * @param {string} content
+ * @param {string} [proof]
  */
-async function doReviewWithRevision(id, content) {
+async function doReviewWithRevision(id, content, proof) {
     const card = document.getElementById(`sub-${id}`);
     const buttons = card?.querySelectorAll("button");
     buttons?.forEach(b => (b.disabled = true));
 
     try {
+        /** @type {Record<string, string>} */
+        const body = { content };
+        if (proof !== undefined) body.proof = proof;
         const res = await fetch(`api/admin/submissions/${id}/approve-revision`, {
             method: "POST",
             headers: { Authorization: token, "Content-Type": "application/json" },
-            body: JSON.stringify({ content }),
+            body: JSON.stringify(body),
         });
         const data = await res.json();
 
@@ -496,6 +525,7 @@ document.getElementById("sub-list")?.addEventListener("click", async e => {
             if (!actionsDiv) return;
             actionsDiv.innerHTML = `
                 <textarea class="revision-textarea"></textarea>
+                <input type="url" class="revision-proof-input" maxlength="500" placeholder="Proof URL (optional) — https://…" />
                 <div style="display:flex;gap:.5rem;margin-top:.5rem">
                     <button class="btn btn-sm btn-success" data-rev-id="${revId}" data-action="confirm-edit-rev">✓ Confirm</button>
                     <button class="btn btn-sm btn-ghost" data-rev-id="${revId}" data-action="cancel-edit-rev">✗ Cancel</button>
@@ -503,19 +533,25 @@ document.getElementById("sub-list")?.addEventListener("click", async e => {
             `;
             const textarea = /** @type {HTMLTextAreaElement | null} */ (actionsDiv.querySelector(".revision-textarea"));
             if (textarea) textarea.value = card.dataset.content ?? "";
+            const proofInput = /** @type {HTMLInputElement | null} */ (actionsDiv.querySelector(".revision-proof-input"));
+            if (proofInput) proofInput.value = card.dataset.proof ?? "";
         }
         else if (action === "confirm-edit-rev") {
             const card = document.getElementById(`rev-${revId}`);
             const textarea = /** @type {HTMLTextAreaElement | null} */ (card?.querySelector(".revision-textarea"));
+            const proofInput = /** @type {HTMLInputElement | null} */ (card?.querySelector(".revision-proof-input"));
             const content = textarea?.value.trim();
+            const proof = proofInput?.value.trim() ?? "";
             if (!content) return;
             const buttons = card?.querySelectorAll("button");
             buttons?.forEach(b => (b.disabled = true));
             try {
+                /** @type {Record<string, string>} */
+                const body = { content, proof };
                 const res = await fetch(`api/admin/revisions/${revId}/approve-revision`, {
                     method: "POST",
                     headers: { Authorization: token, "Content-Type": "application/json" },
-                    body: JSON.stringify({ content }),
+                    body: JSON.stringify(body),
                 });
                 const data = await res.json();
                 if (res.ok) {
@@ -550,7 +586,8 @@ document.getElementById("sub-list")?.addEventListener("click", async e => {
             const display = card.querySelector(".fact-display");
             if (!display) return;
             display.innerHTML = `
-                <textarea class="revision-textarea">${escHtml(card.dataset.factContent ?? "")}</textarea>
+                <textarea class="revision-textarea"></textarea>
+                <input type="url" class="revision-proof-input" maxlength="500" placeholder="Proof URL (optional) — leave empty to clear" />
                 <div style="display:flex;gap:.5rem;margin-top:.5rem">
                     <button class="btn btn-sm btn-success" data-fact-id="${factId}" data-action="save-fact">✓ Save</button>
                     <button class="btn btn-sm btn-ghost" data-fact-id="${factId}" data-action="cancel-edit">✗ Cancel</button>
@@ -558,11 +595,64 @@ document.getElementById("sub-list")?.addEventListener("click", async e => {
             `;
             const textarea = /** @type {HTMLTextAreaElement | null} */ (display.querySelector(".revision-textarea"));
             if (textarea) textarea.value = card.dataset.factContent ?? "";
+            const proofInput = /** @type {HTMLInputElement | null} */ (display.querySelector(".revision-proof-input"));
+            if (proofInput) proofInput.value = card.dataset.factProof ?? "";
+        }
+        else if (action === "add-proof") {
+            const card = document.getElementById(`fact-${factId}`);
+            if (!card) return;
+            const actionsDiv = card.querySelector(".sub-actions");
+            if (!actionsDiv) return;
+            actionsDiv.innerHTML = `
+                <input type="url" class="revision-proof-input" maxlength="500" placeholder="Proof URL — https://…" />
+                <div style="display:flex;gap:.5rem;margin-top:.5rem">
+                    <button class="btn btn-sm btn-success" data-fact-id="${factId}" data-action="save-proof">✓ Save Proof</button>
+                    <button class="btn btn-sm btn-ghost" data-fact-id="${factId}" data-action="cancel-edit">✗ Cancel</button>
+                </div>
+            `;
+            const proofInput = /** @type {HTMLInputElement | null} */ (actionsDiv.querySelector(".revision-proof-input"));
+            proofInput?.focus();
+        }
+        else if (action === "save-proof") {
+            const card = document.getElementById(`fact-${factId}`);
+            const proofInput = /** @type {HTMLInputElement | null} */ (card?.querySelector(".revision-proof-input"));
+            const proof = proofInput?.value.trim() ?? "";
+            if (!proof) {
+                showActionAlert("error", "Please enter a proof URL or cancel.");
+                return;
+            }
+            const buttons = card?.querySelectorAll("button");
+            buttons?.forEach(b => (b.disabled = true));
+            try {
+                const res = await fetch(`api/admin/facts/${factId}`, {
+                    method: "PUT",
+                    headers: { Authorization: token, "Content-Type": "application/json" },
+                    body: JSON.stringify({ proof }),
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showActionAlert("success", data.message);
+                    // eslint-disable-next-line no-shadow
+                    const f = facts.find(f => f.id === parseInt(factId, 10));
+                    if (f) f.proof = proof;
+                    renderList();
+                }
+                else {
+                    showActionAlert("error", data.error ?? "Update failed");
+                    buttons?.forEach(b => (b.disabled = false));
+                }
+            }
+            catch {
+                showActionAlert("error", "Network error");
+                buttons?.forEach(b => (b.disabled = false));
+            }
         }
         else if (action === "save-fact") {
             const card = document.getElementById(`fact-${factId}`);
             const textarea = /** @type {HTMLTextAreaElement | null} */ (card?.querySelector(".revision-textarea"));
+            const proofInput = /** @type {HTMLInputElement | null} */ (card?.querySelector(".revision-proof-input"));
             const content = textarea?.value.trim();
+            const proof = proofInput?.value.trim() ?? "";
             if (!content) return;
             const buttons = card?.querySelectorAll("button");
             buttons?.forEach(b => (b.disabled = true));
@@ -570,14 +660,14 @@ document.getElementById("sub-list")?.addEventListener("click", async e => {
                 const res = await fetch(`api/admin/facts/${factId}`, {
                     method: "PUT",
                     headers: { Authorization: token, "Content-Type": "application/json" },
-                    body: JSON.stringify({ content }),
+                    body: JSON.stringify({ content, proof }),
                 });
                 const data = await res.json();
                 if (res.ok) {
                     showActionAlert("success", data.message);
                     // eslint-disable-next-line no-shadow
                     const f = facts.find(f => f.id === parseInt(factId, 10));
-                    if (f) f.content = content;
+                    if (f) { f.content = content; f.proof = proof || null; }
                     renderList();
                 }
                 else {
@@ -633,6 +723,7 @@ document.getElementById("sub-list")?.addEventListener("click", async e => {
         if (!actionsDiv) return;
         actionsDiv.innerHTML = `
             <textarea class="revision-textarea"></textarea>
+            <input type="url" class="revision-proof-input" maxlength="500" placeholder="Proof URL (optional) — https://…" />
             <div style="display:flex;gap:.5rem;margin-top:.5rem">
                 <button class="btn btn-sm btn-success" data-id="${id}" data-action="confirm-revise">✓ Confirm</button>
                 <button class="btn btn-sm btn-ghost" data-id="${id}" data-action="cancel-revise">✗ Cancel</button>
@@ -640,13 +731,17 @@ document.getElementById("sub-list")?.addEventListener("click", async e => {
         `;
         const textarea = /** @type {HTMLTextAreaElement | null} */ (actionsDiv.querySelector(".revision-textarea"));
         if (textarea) textarea.value = card.dataset.content ?? "";
+        const proofInput = /** @type {HTMLInputElement | null} */ (actionsDiv.querySelector(".revision-proof-input"));
+        if (proofInput) proofInput.value = card.dataset.proof ?? "";
     }
     else if (action === "confirm-revise") {
         const card = document.getElementById(`sub-${id}`);
         const textarea = /** @type {HTMLTextAreaElement | null} */ (card?.querySelector(".revision-textarea"));
+        const proofInput = /** @type {HTMLInputElement | null} */ (card?.querySelector(".revision-proof-input"));
         const revised = textarea?.value.trim();
+        const proof = proofInput?.value.trim() ?? "";
         if (!revised) return;
-        await doReviewWithRevision(id, revised);
+        await doReviewWithRevision(id, revised, proof);
     }
     else if (action === "cancel-revise") {
         renderList();

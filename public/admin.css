@@ -262,6 +262,51 @@ textarea.revision-textarea:focus { border-color: var(--primary); }
   color: var(--warning);
   margin-right: .35rem;
 }
+.proof-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-top: .4rem;
+  font-size: .78rem;
+}
+.proof-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  padding: .12rem .5rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  font-size: .72rem;
+}
+.proof-chip:hover { color: var(--text); border-color: var(--text-muted); }
+.proof-url {
+  color: var(--text-muted);
+  font-family: monospace;
+  font-size: .72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+.revision-proof-input {
+  display: block;
+  width: 100%;
+  margin-top: .4rem;
+  padding: .4rem .6rem;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: .85rem;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.revision-proof-input:focus { outline: none; border-color: var(--accent); }
 
 @media (max-width: 600px) {
   .panel-wrap { padding: 1rem; }
